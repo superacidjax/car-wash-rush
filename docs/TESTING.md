@@ -12,8 +12,9 @@ This performs:
 
 1. StyLua formatting verification.
 2. Selene Roblox-aware linting.
-3. Production and test-place Rojo builds.
-4. Jest execution inside the real Roblox Studio engine.
+3. Luau static type analysis against current Roblox API definitions and the Rojo sourcemap.
+4. Production and test-place Rojo builds.
+5. Jest execution inside the real Roblox Studio engine.
 
 The engine wrapper requires the explicit `CAR_WASH_RUSH_TESTS_PASSED` marker because the Studio CLI can return process code 0 after a script error.
 

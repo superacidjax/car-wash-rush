@@ -34,14 +34,15 @@ function Remotes.start(folderName: string)
 		existing:Destroy()
 	end
 
-	folder = Instance.new("Folder")
-	folder.Name = folderName
-	folder.Parent = ReplicatedStorage
+	local newFolder = Instance.new("Folder")
+	newFolder.Name = folderName
+	newFolder.Parent = ReplicatedStorage
+	folder = newFolder
 
 	for _, remoteName in ipairs(REMOTE_NAMES) do
 		local remote = Instance.new("RemoteEvent")
 		remote.Name = remoteName
-		remote.Parent = folder
+		remote.Parent = newFolder
 	end
 
 	Players.PlayerRemoving:Connect(function(player)

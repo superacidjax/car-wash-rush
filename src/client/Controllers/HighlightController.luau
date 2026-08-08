@@ -49,9 +49,11 @@ end
 
 function HighlightController:_updateOne(highlight: Highlight)
 	local dirt = highlight.Parent
-	highlight.Enabled = self.held
-		and dirt ~= nil
-		and dirt:GetAttribute("OwnerUserId") == self.player.UserId
+	local enabled = false
+	if dirt then
+		enabled = self.held == true and dirt:GetAttribute("OwnerUserId") == self.player.UserId
+	end
+	highlight.Enabled = enabled
 end
 
 function HighlightController:_attachFolder(folder: Instance)

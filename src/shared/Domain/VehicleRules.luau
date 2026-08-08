@@ -2,11 +2,7 @@
 
 local VehicleRules = {}
 
-export type WeightedEntry = {
-	Weight: number,
-}
-
-function VehicleRules.chooseWeighted<T>(entries: { T & WeightedEntry }, roll: number): T?
+function VehicleRules.chooseWeighted(entries: { any }, roll: number): any?
 	local totalWeight = 0
 	for _, entry in entries do
 		totalWeight += math.max(0, entry.Weight)

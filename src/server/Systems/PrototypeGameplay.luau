@@ -1658,9 +1658,10 @@ function PrototypeGameplay.start(greybox)
 	if oldCarsFolder then
 		oldCarsFolder:Destroy()
 	end
-	carsFolder = Instance.new("Folder")
-	carsFolder.Name = Config.World.PrototypeCarsFolderName
-	carsFolder.Parent = Workspace
+	local newCarsFolder = Instance.new("Folder")
+	newCarsFolder.Name = Config.World.PrototypeCarsFolderName
+	newCarsFolder.Parent = Workspace
+	carsFolder = newCarsFolder
 	sharedDumpReference = createSharedDump()
 
 	local shopPrompt = addPrompt(greybox.shopClerk, "Talk", "Milo - Shop Clerk", 0.2)

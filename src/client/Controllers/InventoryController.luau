@@ -8,15 +8,7 @@ type Remotes = {
 	sell: RemoteEvent,
 }
 
-export type InventoryController = typeof(setmetatable(
-	{} :: {
-		panel: Frame,
-		list: ScrollingFrame,
-		remotes: Remotes,
-		snapshot: any?,
-	},
-	InventoryController
-))
+export type InventoryController = any
 
 local function addCorner(parent: GuiObject, radius: number)
 	local corner = Instance.new("UICorner")
@@ -44,7 +36,7 @@ function InventoryController.new(parent: ScreenGui, remotes: Remotes): Inventory
 	openButton.Size = UDim2.fromOffset(260, 42)
 	openButton.ZIndex = 6
 
-	local panel = Instance.new("Frame")
+	local panel = Instance.new("Frame") :: Frame
 	panel.Name = "InventoryPanel"
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position = UDim2.fromScale(0.5, 0.52)
@@ -79,7 +71,7 @@ function InventoryController.new(parent: ScreenGui, remotes: Remotes): Inventory
 	closeButton.Size = UDim2.fromOffset(42, 38)
 	closeButton.ZIndex = 42
 
-	local list = Instance.new("ScrollingFrame")
+	local list = Instance.new("ScrollingFrame") :: ScrollingFrame
 	list.Position = UDim2.fromOffset(14, 62)
 	list.Size = UDim2.new(1, -28, 1, -76)
 	list.BackgroundTransparency = 1
@@ -93,11 +85,11 @@ function InventoryController.new(parent: ScreenGui, remotes: Remotes): Inventory
 	layout.Padding = UDim.new(0, 8)
 	layout.Parent = list
 
-	local self = setmetatable({
+	local self: InventoryController = setmetatable({
 		panel = panel,
 		list = list,
 		remotes = remotes,
-		snapshot = nil,
+		snapshot = nil :: any,
 	}, InventoryController)
 	openButton.MouseButton1Click:Connect(function()
 		self:setVisible(not panel.Visible)

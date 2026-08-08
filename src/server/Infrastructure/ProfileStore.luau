@@ -76,8 +76,8 @@ end
 function ProfileStore:acquire(key: string): (any?, string?)
 	local blockedBySession = false
 	local success, result = self:_attempt(function()
-		return self.store:UpdateAsync(key, function(current: any)
-			local now = self.now()
+		return self.store:UpdateAsync(key, function(current: any): any
+			local now: number = self.now()
 			if type(current) == "table" and type(current.session) == "table" then
 				local owner = current.session.id
 				local expiresAt = tonumber(current.session.expiresAt) or 0
@@ -114,7 +114,7 @@ function ProfileStore:save(key: string, profile: any): (boolean, string?)
 	local lostSession = false
 	local snapshot = deepCopy(profile)
 	local success, result = self:_attempt(function()
-		return self.store:UpdateAsync(key, function(current: any)
+		return self.store:UpdateAsync(key, function(current: any): any
 			if
 				type(current) ~= "table"
 				or type(current.session) ~= "table"
@@ -124,12 +124,14 @@ function ProfileStore:save(key: string, profile: any): (boolean, string?)
 				return nil
 			end
 
+			local currentTime = tonumber(self.now()) or os.time()
+			local expiresAt: number = currentTime + (tonumber(self.leaseSeconds) or 180)
 			return {
 				formatVersion = 1,
 				data = snapshot,
 				session = {
 					id = self.sessionId,
-					expiresAt = self.now() + self.leaseSeconds,
+					expiresAt = expiresAt,
 				},
 			}
 		end)
@@ -146,7 +148,7 @@ end
 
 function ProfileStore:release(key: string): (boolean, string?)
 	local success, result = self:_attempt(function()
-		return self.store:UpdateAsync(key, function(current: any)
+		return self.store:UpdateAsync(key, function(current: any): any
 			if
 				type(current) == "table"
 				and type(current.session) == "table"

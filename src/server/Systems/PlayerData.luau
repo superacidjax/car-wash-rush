@@ -178,7 +178,9 @@ local function savePlayer(player: Player): boolean
 			state.dirty = false
 		end
 	else
-		warn(string.format("[Car Wash Rush] Could not save %s: %s", player.Name, saveError))
+		warn(
+			string.format("[Car Wash Rush] Could not save %s: %s", player.Name, tostring(saveError))
+		)
 		if saveError == "profile session ownership was lost" then
 			state.canSave = false
 		end
@@ -288,7 +290,8 @@ local function createToolInstance(player: Player, item: any): Tool?
 				return
 			end
 			local character = player.Character
-			for _, child in if character then character:GetChildren() else {} do
+			local children: { Instance } = if character then character:GetChildren() else {}
+			for _, child in children do
 				if child:IsA("Tool") and child:GetAttribute("CarWashRushTool") == true then
 					return
 				end
@@ -326,7 +329,8 @@ local function rebuildBackpack(player: Player)
 		return
 	end
 
-	for _, container in { backpack, player.Character } do
+	local containers: { Instance? } = { backpack, player.Character }
+	for _, container in containers do
 		if container then
 			for _, child in container:GetChildren() do
 				if child:IsA("Tool") and child:GetAttribute("CarWashRushTool") == true then
@@ -404,7 +408,11 @@ local function flushAndRelease(player: Player, state: RuntimeState)
 		local released, releaseError = repository:release(state.key)
 		if not released then
 			warn(
-				string.format("[Car Wash Rush] Could not release %s: %s", player.Name, releaseError)
+				string.format(
+					"[Car Wash Rush] Could not release %s: %s",
+					player.Name,
+					tostring(releaseError)
+				)
 			)
 		end
 	end
@@ -431,7 +439,7 @@ local function loadPlayer(player: Player)
 				string.format(
 					"[Car Wash Rush] DataStore unavailable for %s; Studio session will not save: %s",
 					player.Name,
-					loadError
+					tostring(loadError)
 				)
 			)
 		else
