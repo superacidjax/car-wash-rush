@@ -1,6 +1,7 @@
 --!strict
 
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local DemandController = {}
 DemandController.__index = DemandController
@@ -89,7 +90,7 @@ function DemandController.new(
 		if not state or not state.active then
 			return
 		end
-		local remaining = math.max(0, state.endsAt - os.time())
+		local remaining = math.max(0, state.endsAt - math.floor(Workspace:GetServerTimeNow()))
 		timer.Text = string.format("%02d:%02d", math.floor(remaining / 60), remaining % 60)
 		if remaining == 0 then
 			banner.Visible = false

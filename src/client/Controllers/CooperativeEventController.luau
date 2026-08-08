@@ -364,7 +364,7 @@ function CooperativeEventController.new(parent: ScreenGui, remotes: any): any
 	RunService.RenderStepped:Connect(function()
 		local state = self.state
 		if state and state.active then
-			local remaining = math.max(0, state.endsAt - os.time())
+			local remaining = math.max(0, state.endsAt - math.floor(Workspace:GetServerTimeNow()))
 			statusTimer.Text =
 				string.format("%02d:%02d", math.floor(remaining / 60), remaining % 60)
 		end
