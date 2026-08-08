@@ -257,10 +257,6 @@ local function beginCleaning(player: Player, dirt: BasePart, car: Model)
 		isHelper = not isOwner,
 	}
 	activeSpotCleaners[dirt] = player
-	if not isOwner then
-		vehicleHelpers[car] = vehicleHelpers[car] or {}
-		vehicleHelpers[car][player] = true
-	end
 
 	Remotes.get("CleaningStarted"):FireClient(player, {
 		requiredClicks = requiredClicks,
@@ -333,6 +329,10 @@ local function completeDirtSpot(player: Player, session)
 			:FireClient(player, false, "That tool could not clean the spot.")
 		return
 	end
+	if session.isHelper then
+		vehicleHelpers[car] = vehicleHelpers[car] or {}
+		vehicleHelpers[car][player] = true
+	end
 	announceLevelUp(player, levelsGained, newLevel)
 
 	Remotes.get("CleaningEnded"):FireClient(
@@ -375,12 +375,18 @@ local function completeDirtSpot(player: Player, session)
 				completionExperience
 			)
 			announceLevelUp(owner, ownerLevels, ownerLevel)
-			local wage =
-				AssistanceRules.helperWage(completionCoins, Config.Assistance.HelperWageMultiplier)
-			PlayerData.addCoins(player, wage)
-			notify(player, string.format("Helper wage: +%d coins", wage))
 		elseif ownerBonus > 0 then
 			PlayerData.addCoins(owner, ownerBonus)
+		end
+		if helpers then
+			local wage =
+				AssistanceRules.helperWage(completionCoins, Config.Assistance.HelperWageMultiplier)
+			for helper in helpers do
+				if helper.Parent then
+					PlayerData.addCoins(helper, wage)
+					notify(helper, string.format("Helper wage: +%d coins", wage))
+				end
+			end
 		end
 		PlayerData.incrementLevelOneCarsCompleted(owner)
 		notify(
