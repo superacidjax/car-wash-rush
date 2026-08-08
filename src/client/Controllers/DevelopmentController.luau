@@ -37,7 +37,7 @@ function DevelopmentController.new(
 	panel.Name = "StudioTestPanel"
 	panel.AnchorPoint = Vector2.new(1, 0)
 	panel.Position = UDim2.new(1, -18, 0, 64)
-	panel.Size = UDim2.fromOffset(210, 306)
+	panel.Size = UDim2.fromOffset(210, 352)
 	panel.BackgroundColor3 = Color3.fromRGB(24, 29, 40)
 	panel.BorderSizePixel = 0
 	panel.Visible = false
@@ -98,6 +98,9 @@ function DevelopmentController.new(
 	end)
 	addButton("+50 EVENT TOKENS", function()
 		devCommand:FireServer("tokens")
+	end)
+	addButton("GRANT LEVEL 2 HOSE", function()
+		devCommand:FireServer("hose")
 	end)
 	addButton("START BUS EVENT", function()
 		forceEvent:FireServer()

@@ -12,6 +12,7 @@ local REMOTE_NAMES = {
 	"CleaningEnded",
 	"CleaningProgress",
 	"CleaningStarted",
+	"CleaningStream",
 	"CleaningTrace",
 	"CooperativeEventAction",
 	"CooperativeEventMinigame",

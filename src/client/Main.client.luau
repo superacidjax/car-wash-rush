@@ -27,6 +27,7 @@ local cleaningClick = remote("CleaningClick")
 local cleaningEnded = remote("CleaningEnded")
 local cleaningProgress = remote("CleaningProgress")
 local cleaningStarted = remote("CleaningStarted")
+local cleaningStream = remote("CleaningStream")
 local cleaningTrace = remote("CleaningTrace")
 local cooperativeEventAction = remote("CooperativeEventAction")
 local cooperativeEventMinigame = remote("CooperativeEventMinigame")
@@ -642,6 +643,8 @@ local activeCleaningMode = "click"
 local tracePointerHeld = false
 local lastTracePosition: Vector3? = nil
 local tracePixelCarry = 0
+local streamHeld = false
+local lastStreamSendAt = 0
 local displayedProgress = 0
 local serverProgress = 0
 local requiredClicks = 1
@@ -674,6 +677,7 @@ cleaningStarted.OnClientEvent:Connect(function(data)
 	tracePointerHeld = false
 	lastTracePosition = nil
 	tracePixelCarry = 0
+	streamHeld = false
 	serverProgress = 0
 	displayedProgress = 0
 	requiredClicks = data.requiredClicks or 1
@@ -682,6 +686,7 @@ cleaningStarted.OnClientEvent:Connect(function(data)
 	cleaningTitle.Text = "CLEANING"
 	cleaningHint.Text = if activeCleaningMode == "trace"
 		then "HOLD AND TRACE BACK AND FORTH"
+		elseif activeCleaningMode == "stream" then "HOLD TO RINSE; RELEASE TO SAVE WATER"
 		else "CLICK OR TAP ANYWHERE"
 	progressFill.Size = UDim2.fromScale(0, 1)
 	progressText.Text = string.format("0 / %d", requiredClicks)
@@ -700,6 +705,7 @@ end)
 cleaningEnded.OnClientEvent:Connect(function(completed, message)
 	activeCleaning = false
 	tracePointerHeld = false
+	streamHeld = false
 	lastTracePosition = nil
 	stopCleaningRender()
 	cleaningPanel.Visible = false
@@ -1187,6 +1193,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if activeCleaningMode == "trace" then
 			tracePointerHeld = true
 			lastTracePosition = input.Position
+		elseif activeCleaningMode == "stream" then
+			streamHeld = true
 		else
 			cleaningClick:FireServer()
 		end
@@ -1248,7 +1256,19 @@ UserInputService.InputEnded:Connect(function(input)
 		or input.UserInputType == Enum.UserInputType.Touch
 	then
 		tracePointerHeld = false
+		streamHeld = false
 		lastTracePosition = nil
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not activeCleaning or activeCleaningMode ~= "stream" or not streamHeld then
+		return
+	end
+	local now = os.clock()
+	if now - lastStreamSendAt >= 0.11 then
+		lastStreamSendAt = now
+		cleaningStream:FireServer()
 	end
 end)
 

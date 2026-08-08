@@ -163,6 +163,7 @@ Config.Teleports = {
 Config.RemoteLimits = {
 	CleaningClick = { Rate = 15, Burst = 20 },
 	CleaningTrace = { Rate = 12, Burst = 16 },
+	CleaningStream = { Rate = 10, Burst = 14 },
 	CooperativeEventAction = { Rate = 14, Burst = 20 },
 	DevCommand = { Rate = 2, Burst = 4 },
 	ClaimQualitySpongeAbility = { Rate = 2, Burst = 3 },

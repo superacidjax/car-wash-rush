@@ -54,6 +54,7 @@ The purple **TEST** button appears only in Studio play sessions. It cannot appea
 - **Set Level 10** unlocks level-gated test paths.
 - **Grant Old Rag** grants or adds a starter rag.
 - **+50 Event Tokens** verifies token UI and persistence snapshots.
+- **Grant Level 2 Hose** adds the hidden hold-to-rinse test tool without placing it in Milo's economy.
 - **Start Bus Event** bypasses the eight-minute first-event wait.
 - **Reset Profile** requires two clicks within four seconds. It resets the current Studio profile and can save when Studio API access is enabled, so use it only in the private test experience.
 

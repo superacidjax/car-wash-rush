@@ -30,6 +30,9 @@ function DevelopmentSystem.start()
 		elseif command == "tokens" then
 			PlayerData.addEventTokens(player, 50)
 			notify(player, "Studio test grant: +50 event tokens")
+		elseif command == "hose" then
+			PlayerData.grantTool(player, "tool_test_hose", true)
+			notify(player, "Studio Level 2 test hose granted")
 		elseif command == "reset_profile" then
 			PlayerData.resetForStudio(player)
 			notify(player, "Studio test profile reset")

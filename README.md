@@ -38,6 +38,7 @@ This Phase 0 build now creates:
 - Persistent event tokens and Private/Friends/Open wash assistance.
 - Globally synchronized city-demand bonuses and guarded vehicle chaos events.
 - A six-phase cooperative city-bus event with standardized tools and mobile pressure-washer controls.
+- A Studio-only Level 2 rinse hose for testing hold/release stream cleaning before economy release.
 - An intentional eight-player prototype cap with unique plots and aircraft bays.
 - Jumping disabled during the current prototype phase.
 
