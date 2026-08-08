@@ -491,8 +491,20 @@ local function newItem(toolId: string): any?
 end
 
 function PlayerData.start()
-	Remotes.get("RequestInventory").OnServerEvent:Connect(function(player)
+	Remotes.connect("RequestInventory", function(player)
 		updateReplicatedValues(player)
+	end)
+	Remotes.connect("EquipInventoryItem", function(player, itemId)
+		if type(itemId) == "string" then
+			local _, message = PlayerData.equipInventoryItem(player, itemId)
+			Remotes.get("Notify"):FireClient(player, message)
+		end
+	end)
+	Remotes.connect("SellInventoryItem", function(player, itemId)
+		if type(itemId) == "string" then
+			local _, message = PlayerData.sellInventoryItem(player, itemId)
+			Remotes.get("Notify"):FireClient(player, message)
+		end
 	end)
 
 	Players.PlayerAdded:Connect(function(player)

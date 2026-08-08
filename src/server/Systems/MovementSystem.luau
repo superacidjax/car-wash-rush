@@ -31,7 +31,7 @@ function MovementSystem.start()
 		setupPlayer(player)
 	end
 
-	Remotes.get("SprintChanged").OnServerEvent:Connect(function(player, sprinting)
+	Remotes.connect("SprintChanged", function(player, sprinting)
 		if type(sprinting) ~= "boolean" then
 			return
 		end

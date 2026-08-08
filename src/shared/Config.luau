@@ -57,6 +57,18 @@ Config.Cleaning = {
 	QualitySpongeAbilityReward = 40,
 }
 
+Config.RemoteLimits = {
+	CleaningClick = { Rate = 15, Burst = 20 },
+	ClaimQualitySpongeAbility = { Rate = 2, Burst = 3 },
+	EquipInventoryItem = { Rate = 3, Burst = 5 },
+	PurchaseTool = { Rate = 2, Burst = 4 },
+	RequestCleanSpot = { Rate = 4, Burst = 6 },
+	RequestInventory = { Rate = 0.5, Burst = 2 },
+	RequestTeleport = { Rate = 1, Burst = 2 },
+	SellInventoryItem = { Rate = 3, Burst = 5 },
+	SprintChanged = { Rate = 4, Burst = 6 },
+}
+
 Config.LevelOneVehicles = {
 	{
 		Id = "small_car",

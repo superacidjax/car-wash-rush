@@ -7,6 +7,8 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Co
 local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
 local PlayerData = require(script.Parent:WaitForChild("PlayerData"))
 local Remotes = require(script.Parent:WaitForChild("Remotes"))
+local SecurePrompt =
+	require(script.Parent.Parent:WaitForChild("Infrastructure"):WaitForChild("SecurePrompt"))
 
 local PrototypeGameplay = {}
 
@@ -1469,7 +1471,7 @@ local function createSharedDump()
 	for index = 1, Config.Trash.CanCount do
 		local can = createTrashcan(dump, dumpCenter, index)
 		table.insert(state.cans, can)
-		can.prompt.Triggered:Connect(function(searchingPlayer)
+		SecurePrompt.bind(can.prompt, Config.Trash.SearchSeconds, function(searchingPlayer)
 			searchTrashcan(searchingPlayer, index)
 		end)
 	end
@@ -1490,9 +1492,16 @@ local function createSharedDump()
 	}) do
 		local dumpster = createDumpster(dump, dumpCenter + offset, index)
 		table.insert(dumpsterState.dumpsters, dumpster)
-		dumpster.prompt.Triggered:Connect(function(searchingPlayer)
-			searchDumpster(searchingPlayer, index)
-		end)
+		SecurePrompt.bind(
+			dumpster.prompt,
+			Config.Trash.DumpsterSearchSeconds,
+			function(searchingPlayer)
+				searchDumpster(searchingPlayer, index)
+			end,
+			function(searchingPlayer)
+				return PlayerData.getLevel(searchingPlayer) >= Config.Trash.DumpsterMinimumLevel
+			end
+		)
 	end
 
 	return {
@@ -1681,8 +1690,8 @@ function PrototypeGameplay.start(greybox)
 			:FireClient(player, Catalog.getShopTools(), greybox.shopClerk)
 	end)
 
-	Remotes.get("CleaningClick").OnServerEvent:Connect(handleCleaningClick)
-	Remotes.get("ClaimQualitySpongeAbility").OnServerEvent:Connect(function(player)
+	Remotes.connect("CleaningClick", handleCleaningClick)
+	Remotes.connect("ClaimQualitySpongeAbility", function(player)
 		local item = PlayerData.getEquippedToolItem(player)
 		if not item or item.toolId ~= "tool_quality_sponge" or item.durability <= 0 then
 			return
@@ -1699,7 +1708,7 @@ function PrototypeGameplay.start(greybox)
 			)
 		end
 	end)
-	Remotes.get("RequestCleanSpot").OnServerEvent:Connect(function(player, dirt)
+	Remotes.connect("RequestCleanSpot", function(player, dirt)
 		if
 			typeof(dirt) ~= "Instance"
 			or not dirt:IsA("BasePart")
@@ -1715,7 +1724,7 @@ function PrototypeGameplay.start(greybox)
 			beginCleaning(player, dirt, car)
 		end
 	end)
-	Remotes.get("PurchaseTool").OnServerEvent:Connect(function(player, toolId)
+	Remotes.connect("PurchaseTool", function(player, toolId)
 		if type(toolId) ~= "string" or not isNear(player, greybox.shopClerk, 22) then
 			notify(player, "Move closer to the shop counter to buy that.")
 			return
@@ -1727,7 +1736,7 @@ function PrototypeGameplay.start(greybox)
 			notify(player, string.format("%s equipped automatically.", definition.DisplayName))
 		end
 	end)
-	Remotes.get("RequestTeleport").OnServerEvent:Connect(function(player, locationId)
+	Remotes.connect("RequestTeleport", function(player, locationId)
 		if type(locationId) ~= "string" then
 			return
 		end
