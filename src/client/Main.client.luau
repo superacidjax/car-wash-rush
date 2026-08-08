@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Controllers = script.Parent:WaitForChild("Controllers")
+local CooperativeEventController = require(Controllers:WaitForChild("CooperativeEventController"))
 local HighlightController = require(Controllers:WaitForChild("HighlightController"))
 local DemandController = require(Controllers:WaitForChild("DemandController"))
 local InventoryController = require(Controllers:WaitForChild("InventoryController"))
@@ -23,14 +24,19 @@ local cleaningClick = remote("CleaningClick")
 local cleaningEnded = remote("CleaningEnded")
 local cleaningProgress = remote("CleaningProgress")
 local cleaningStarted = remote("CleaningStarted")
+local cooperativeEventAction = remote("CooperativeEventAction")
+local cooperativeEventMinigame = remote("CooperativeEventMinigame")
+local cooperativeEventState = remote("CooperativeEventState")
 local demandStateUpdated = remote("DemandStateUpdated")
 local claimQualitySpongeAbility = remote("ClaimQualitySpongeAbility")
 local equipInventoryItem = remote("EquipInventoryItem")
+local forceCooperativeEvent = remote("ForceCooperativeEvent")
 local inventoryUpdated = remote("InventoryUpdated")
 local notifyRemote = remote("Notify")
 local openShopDialogue = remote("OpenShopDialogue")
 local purchaseTool = remote("PurchaseTool")
 local requestCleanSpot = remote("RequestCleanSpot")
+local requestCooperativeEventState = remote("RequestCooperativeEventState")
 local requestInventory = remote("RequestInventory")
 local requestDemandState = remote("RequestDemandState")
 local requestTeleport = remote("RequestTeleport")
@@ -56,6 +62,13 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
 DemandController.new(screenGui, demandStateUpdated, requestDemandState)
+CooperativeEventController.new(screenGui, {
+	action = cooperativeEventAction,
+	minigame = cooperativeEventMinigame,
+	state = cooperativeEventState,
+	request = requestCooperativeEventState,
+	force = forceCooperativeEvent,
+})
 
 local highlightController = HighlightController.new(player, Config.World.PrototypeCarsFolderName)
 local inventoryController = InventoryController.new(screenGui, {
@@ -134,7 +147,7 @@ table.insert(navigationButtons, travelButton)
 local travelPanel = Instance.new("Frame")
 travelPanel.Name = "TravelPanel"
 travelPanel.Position = UDim2.fromOffset(18, 166)
-travelPanel.Size = UDim2.fromOffset(330, 286)
+travelPanel.Size = UDim2.fromOffset(330, 342)
 travelPanel.BackgroundColor3 = COLORS.Ink
 travelPanel.BorderSizePixel = 0
 travelPanel.Visible = false
@@ -215,6 +228,31 @@ end
 for _, locationId in ipairs(Config.Teleports.Order) do
 	createNavigationButton(locationId)
 end
+
+local eventTravelButton = Instance.new("TextButton")
+eventTravelButton.Name = "eventButton"
+eventTravelButton.Size = UDim2.new(1, 0, 0, 48)
+eventTravelButton.BackgroundColor3 = Color3.fromRGB(155, 70, 44)
+eventTravelButton.BorderSizePixel = 0
+eventTravelButton.Text = "CITY EVENT    |    FREE"
+eventTravelButton.TextColor3 = Color3.fromRGB(255, 247, 218)
+eventTravelButton.TextSize = 14
+eventTravelButton.Font = Enum.Font.GothamBold
+eventTravelButton.Visible = false
+eventTravelButton.ZIndex = 42
+eventTravelButton.Parent = travelList
+addCorner(eventTravelButton, 6)
+addStroke(eventTravelButton, Color3.fromRGB(255, 176, 83), 2)
+eventTravelButton.MouseButton1Click:Connect(function()
+	if navigationEnabled then
+		requestTeleport:FireServer("event")
+		travelPanel.Visible = false
+	end
+end)
+table.insert(navigationButtons, eventTravelButton)
+cooperativeEventState.OnClientEvent:Connect(function(state)
+	eventTravelButton.Visible = state.active == true
+end)
 
 local function updateTravelPanel()
 	local snapshot = latestInventory
@@ -318,7 +356,7 @@ addCorner(experienceBarFill, 4)
 local moneyPanel = Instance.new("Frame")
 moneyPanel.Name = "MoneyPanel"
 moneyPanel.Position = UDim2.fromOffset(18, 300)
-moneyPanel.Size = UDim2.fromOffset(260, 48)
+moneyPanel.Size = UDim2.fromOffset(260, 72)
 moneyPanel.BackgroundColor3 = Color3.fromRGB(32, 92, 61)
 moneyPanel.BackgroundTransparency = 0.06
 moneyPanel.BorderSizePixel = 0
@@ -329,7 +367,7 @@ addStroke(moneyPanel, COLORS.Green, 2)
 
 local moneyLabel = Instance.new("TextLabel")
 moneyLabel.Position = UDim2.fromOffset(14, 0)
-moneyLabel.Size = UDim2.new(1, -28, 1, 0)
+moneyLabel.Size = UDim2.new(1, -28, 0, 38)
 moneyLabel.BackgroundTransparency = 1
 moneyLabel.Text = "COINS  0"
 moneyLabel.TextColor3 = Color3.fromRGB(240, 255, 240)
@@ -339,9 +377,21 @@ moneyLabel.TextXAlignment = Enum.TextXAlignment.Left
 moneyLabel.ZIndex = 6
 moneyLabel.Parent = moneyPanel
 
+local eventTokenLabel = Instance.new("TextLabel")
+eventTokenLabel.Position = UDim2.fromOffset(14, 37)
+eventTokenLabel.Size = UDim2.new(1, -28, 0, 28)
+eventTokenLabel.BackgroundTransparency = 1
+eventTokenLabel.Text = "EVENT TOKENS  0"
+eventTokenLabel.TextColor3 = Color3.fromRGB(255, 221, 125)
+eventTokenLabel.TextSize = 15
+eventTokenLabel.Font = Enum.Font.GothamBold
+eventTokenLabel.TextXAlignment = Enum.TextXAlignment.Left
+eventTokenLabel.ZIndex = 6
+eventTokenLabel.Parent = moneyPanel
+
 local toolStatus = Instance.new("TextLabel")
 toolStatus.Name = "ToolStatus"
-toolStatus.Position = UDim2.fromOffset(18, 360)
+toolStatus.Position = UDim2.fromOffset(18, 384)
 toolStatus.Size = UDim2.fromOffset(260, 42)
 toolStatus.BackgroundColor3 = COLORS.Ink
 toolStatus.BackgroundTransparency = 0.12
@@ -1122,6 +1172,7 @@ notifyRemote.OnClientEvent:Connect(showNotification)
 local function updateMoneyStatus()
 	if latestInventory then
 		moneyLabel.Text = string.format("COINS  %d", latestInventory.coins or 0)
+		eventTokenLabel.Text = string.format("EVENT TOKENS  %d", latestInventory.eventTokens or 0)
 	end
 end
 

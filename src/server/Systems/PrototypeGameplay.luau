@@ -12,6 +12,7 @@ local PlotRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("PlotRule
 local VehicleRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("VehicleRules"))
 local PlayerData = require(script.Parent:WaitForChild("PlayerData"))
 local DemandSystem = require(script.Parent:WaitForChild("DemandSystem"))
+local CooperativeEventSystem = require(script.Parent:WaitForChild("CooperativeEventSystem"))
 local Remotes = require(script.Parent:WaitForChild("Remotes"))
 local SecurePrompt =
 	require(script.Parent.Parent:WaitForChild("Infrastructure"):WaitForChild("SecurePrompt"))
@@ -2497,6 +2498,15 @@ function PrototypeGameplay.start(greybox)
 		end
 		if activeCleaning[player] then
 			notify(player, "Finish cleaning this spot before travelling.")
+			return
+		end
+		if locationId == "event" then
+			local eventArrival = CooperativeEventSystem.getArrival()
+			if not CooperativeEventSystem.isActive() or not eventArrival then
+				notify(player, "That city event has ended.")
+				return
+			end
+			teleportPlayer(player, eventArrival)
 			return
 		end
 		if not Config.Teleports.Locations[locationId] then

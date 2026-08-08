@@ -5,6 +5,7 @@ local Systems = script.Parent:WaitForChild("Systems")
 
 local GreyboxStarterCorner = require(Systems:WaitForChild("GreyboxStarterCorner"))
 local DemandSystem = require(Systems:WaitForChild("DemandSystem"))
+local CooperativeEventSystem = require(Systems:WaitForChild("CooperativeEventSystem"))
 local MovementSystem = require(Systems:WaitForChild("MovementSystem"))
 local PlayerData = require(Systems:WaitForChild("PlayerData"))
 local PrototypeGameplay = require(Systems:WaitForChild("PrototypeGameplay"))
@@ -22,6 +23,7 @@ end
 
 MovementSystem.start()
 DemandSystem.start()
+CooperativeEventSystem.start(greybox.root)
 PrototypeGameplay.start(greybox)
 
 print("[Car Wash Rush] Server loaded.")

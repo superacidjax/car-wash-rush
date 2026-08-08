@@ -60,6 +60,24 @@ Config.Demand = {
 	},
 }
 
+Config.CooperativeEvent = {
+	FirstDelaySeconds = 8 * 60,
+	MinimumRepeatDelaySeconds = 12 * 60,
+	MaximumRepeatDelaySeconds = 18 * 60,
+	DurationSeconds = 10 * 60,
+	EventCenter = Vector3.new(430, 0, 240),
+	BasePhaseGoal = 24,
+	MinimumMeaningfulContribution = 6,
+	Phases = {
+		{ Id = "foam", DisplayName = "Apply Foam", ToolName = "Event Foam Cannon" },
+		{ Id = "scrub", DisplayName = "Scrub Dirt", ToolName = "Event Sponge" },
+		{ Id = "pressure", DisplayName = "Pressure Wash", ToolName = "Event Pressure Washer" },
+		{ Id = "wheels", DisplayName = "Clean Wheels", ToolName = "Event Wheel Brush" },
+		{ Id = "vacuum", DisplayName = "Vacuum Interior", ToolName = "Event Vacuum" },
+		{ Id = "polish", DisplayName = "Dry and Polish", ToolName = "Event Polisher" },
+	},
+}
+
 Config.Inventory = {
 	HotbarCapacity = 8,
 }
@@ -133,12 +151,15 @@ Config.Teleports = {
 
 Config.RemoteLimits = {
 	CleaningClick = { Rate = 15, Burst = 20 },
+	CooperativeEventAction = { Rate = 14, Burst = 20 },
 	ClaimQualitySpongeAbility = { Rate = 2, Burst = 3 },
 	EquipInventoryItem = { Rate = 3, Burst = 5 },
 	PurchaseTool = { Rate = 2, Burst = 4 },
 	RequestCleanSpot = { Rate = 4, Burst = 6 },
 	RequestInventory = { Rate = 0.5, Burst = 2 },
 	RequestDemandState = { Rate = 0.5, Burst = 2 },
+	RequestCooperativeEventState = { Rate = 0.5, Burst = 2 },
+	ForceCooperativeEvent = { Rate = 0.2, Burst = 1 },
 	RequestTeleport = { Rate = 1, Burst = 2 },
 	SellInventoryItem = { Rate = 3, Burst = 5 },
 	SprintChanged = { Rate = 4, Burst = 6 },
