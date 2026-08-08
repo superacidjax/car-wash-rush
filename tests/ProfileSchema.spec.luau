@@ -18,7 +18,7 @@ describe("ProfileSchema", function()
 			},
 		})
 
-		expect(profile.version).toBe(5)
+		expect(profile.version).toBe(6)
 		expect(profile.inventory[1].qualityCharge).toBe(0)
 		expect(profile.inventory[2].qualityCharge).toBe(7)
 	end)
@@ -27,6 +27,17 @@ describe("ProfileSchema", function()
 		local profile = ProfileSchema.normalize({ ladderPlaced = true })
 
 		expect(profile.ladderPlaced).toBe(true)
+	end)
+
+	it("persists known teleport unlocks and rejects unknown destinations", function()
+		local profile = ProfileSchema.normalize({
+			unlockedTeleports = { shop = true, aircraft = true, exploit = true },
+		})
+
+		expect(profile.unlockedTeleports.home).toBe(true)
+		expect(profile.unlockedTeleports.shop).toBe(true)
+		expect(profile.unlockedTeleports.aircraft).toBe(true)
+		expect(profile.unlockedTeleports.exploit).toBeNil()
 	end)
 
 	it("drops broken or unknown tools and repairs duplicate ids", function()

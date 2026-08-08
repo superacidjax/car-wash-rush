@@ -4,7 +4,7 @@ local Catalog = require(script.Parent.Parent.Catalog)
 
 local ProfileSchema = {}
 
-ProfileSchema.VERSION = 5
+ProfileSchema.VERSION = 6
 
 export type InventoryItem = {
 	id: string,
@@ -20,6 +20,7 @@ export type Profile = {
 	experience: number,
 	ragFound: boolean,
 	ladderPlaced: boolean,
+	unlockedTeleports: { [string]: boolean },
 	equippedItemId: string?,
 	hotbarItemIds: { string },
 	inventory: { InventoryItem },
@@ -69,6 +70,7 @@ function ProfileSchema.default(): Profile
 		experience = 0,
 		ragFound = false,
 		ladderPlaced = false,
+		unlockedTeleports = { home = true },
 		equippedItemId = nil,
 		hotbarItemIds = {},
 		inventory = {},
@@ -90,6 +92,17 @@ function ProfileSchema.normalize(raw: any, idFactory: (() -> string)?): Profile
 	profile.experience = nonNegativeInteger(raw.experience, 0)
 	profile.ragFound = raw.ragFound == true
 	profile.ladderPlaced = raw.ladderPlaced == true
+	if type(raw.unlockedTeleports) == "table" then
+		for locationId in raw.unlockedTeleports do
+			if
+				type(locationId) == "string"
+				and raw.unlockedTeleports[locationId] == true
+				and table.find({ "home", "shop", "dump", "aircraft" }, locationId)
+			then
+				profile.unlockedTeleports[locationId] = true
+			end
+		end
+	end
 
 	local seenIds: { [string]: boolean } = {}
 	if type(raw.inventory) == "table" then

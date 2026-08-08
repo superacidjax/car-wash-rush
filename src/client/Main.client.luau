@@ -56,6 +56,7 @@ local highlightController = HighlightController.new(player, Config.World.Prototy
 local inventoryController = InventoryController.new(screenGui, {
 	equip = equipInventoryItem,
 })
+local latestInventory = nil
 
 local function addCorner(parent: GuiObject, radius: number?)
 	local corner = Instance.new("UICorner")
@@ -107,87 +108,147 @@ local function showNotification(message: string, duration: number?)
 	end)
 end
 
-local navigationBar = Instance.new("Frame")
-navigationBar.Name = "LocationNavigation"
-navigationBar.AnchorPoint = Vector2.new(0.5, 0)
-navigationBar.Position = UDim2.new(0.5, 0, 0, 48)
-navigationBar.Size = UDim2.new(0.92, 0, 0, 52)
-navigationBar.BackgroundTransparency = 1
-navigationBar.ZIndex = 25
-navigationBar.Parent = screenGui
-
-local navigationConstraint = Instance.new("UISizeConstraint")
-navigationConstraint.MinSize = Vector2.new(300, 52)
-navigationConstraint.MaxSize = Vector2.new(560, 52)
-navigationConstraint.Parent = navigationBar
-
-local navigationLayout = Instance.new("UIListLayout")
-navigationLayout.FillDirection = Enum.FillDirection.Horizontal
-navigationLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-navigationLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-navigationLayout.Padding = UDim.new(0, 6)
-navigationLayout.Parent = navigationBar
-
 local navigationButtons = {}
 local navigationEnabled = true
-local function createNavigationButton(
-	name: string,
-	text: string,
-	locationId: string,
-	widthScale: number,
-	background: Color3,
-	strokeColor: Color3
-)
+local travelButton = Instance.new("TextButton")
+travelButton.Name = "TravelButton"
+travelButton.Position = UDim2.fromOffset(18, 116)
+travelButton.Size = UDim2.fromOffset(150, 44)
+travelButton.BackgroundColor3 = Color3.fromRGB(48, 111, 154)
+travelButton.BorderSizePixel = 0
+travelButton.Text = "TRAVEL"
+travelButton.TextColor3 = COLORS.Cream
+travelButton.TextSize = 17
+travelButton.Font = Enum.Font.GothamBold
+travelButton.ZIndex = 40
+travelButton.Parent = screenGui
+addCorner(travelButton, 6)
+addStroke(travelButton, Color3.fromRGB(120, 210, 240), 2)
+table.insert(navigationButtons, travelButton)
+
+local travelPanel = Instance.new("Frame")
+travelPanel.Name = "TravelPanel"
+travelPanel.Position = UDim2.fromOffset(18, 166)
+travelPanel.Size = UDim2.fromOffset(330, 286)
+travelPanel.BackgroundColor3 = COLORS.Ink
+travelPanel.BorderSizePixel = 0
+travelPanel.Visible = false
+travelPanel.ZIndex = 40
+travelPanel.Parent = screenGui
+addCorner(travelPanel, 6)
+addStroke(travelPanel, COLORS.Gold, 2)
+
+local travelTitle = Instance.new("TextLabel")
+travelTitle.Position = UDim2.fromOffset(16, 10)
+travelTitle.Size = UDim2.new(1, -68, 0, 34)
+travelTitle.BackgroundTransparency = 1
+travelTitle.Text = "CITY TRAVEL"
+travelTitle.TextColor3 = COLORS.Cream
+travelTitle.TextSize = 19
+travelTitle.Font = Enum.Font.GothamBold
+travelTitle.TextXAlignment = Enum.TextXAlignment.Left
+travelTitle.ZIndex = 41
+travelTitle.Parent = travelPanel
+
+local closeTravel = Instance.new("TextButton")
+closeTravel.AnchorPoint = Vector2.new(1, 0)
+closeTravel.Position = UDim2.new(1, -10, 0, 8)
+closeTravel.Size = UDim2.fromOffset(38, 38)
+closeTravel.BackgroundColor3 = COLORS.Red
+closeTravel.BorderSizePixel = 0
+closeTravel.Text = "X"
+closeTravel.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeTravel.TextSize = 18
+closeTravel.Font = Enum.Font.GothamBold
+closeTravel.ZIndex = 42
+closeTravel.Parent = travelPanel
+addCorner(closeTravel, 4)
+
+local travelList = Instance.new("Frame")
+travelList.Position = UDim2.fromOffset(12, 54)
+travelList.Size = UDim2.new(1, -24, 1, -66)
+travelList.BackgroundTransparency = 1
+travelList.ZIndex = 41
+travelList.Parent = travelPanel
+local travelLayout = Instance.new("UIListLayout")
+travelLayout.Padding = UDim.new(0, 7)
+travelLayout.Parent = travelList
+
+local travelEntries = {}
+local locationColors = {
+	home = { Color3.fromRGB(48, 111, 154), Color3.fromRGB(120, 210, 240) },
+	shop = { Color3.fromRGB(164, 116, 35), Color3.fromRGB(247, 207, 86) },
+	dump = { Color3.fromRGB(91, 67, 43), Color3.fromRGB(151, 108, 66) },
+	aircraft = { Color3.fromRGB(72, 82, 76), Color3.fromRGB(155, 178, 160) },
+}
+local function createNavigationButton(locationId: string)
+	local definition = Config.Teleports.Locations[locationId]
+	local colors = locationColors[locationId]
 	local button = Instance.new("TextButton")
-	button.Name = name
-	button.Size = UDim2.fromScale(widthScale, 1)
-	button.BackgroundColor3 = background
+	button.Name = locationId .. "Button"
+	button.Size = UDim2.new(1, 0, 0, 48)
+	button.BackgroundColor3 = colors[1]
 	button.BorderSizePixel = 0
-	button.Text = text
+	button.Text = string.upper(definition.DisplayName)
 	button.TextColor3 = Color3.fromRGB(255, 250, 226)
-	button.TextSize = 15
+	button.TextSize = 14
 	button.TextWrapped = true
 	button.Font = Enum.Font.GothamBold
-	button.ZIndex = 26
-	button.Parent = navigationBar
+	button.ZIndex = 42
+	button.Parent = travelList
 	addCorner(button, 6)
-	addStroke(button, strokeColor, 2)
+	addStroke(button, colors[2], 2)
 	button.MouseButton1Click:Connect(function()
 		if navigationEnabled then
 			requestTeleport:FireServer(locationId)
+			travelPanel.Visible = false
 		end
 	end)
 	table.insert(navigationButtons, button)
-	return button
+	travelEntries[locationId] = button
+end
+for _, locationId in ipairs(Config.Teleports.Order) do
+	createNavigationButton(locationId)
 end
 
-createNavigationButton(
-	"HomeButton",
-	"HOME",
-	"home",
-	0.2,
-	Color3.fromRGB(48, 111, 154),
-	Color3.fromRGB(120, 210, 240)
-)
-createNavigationButton(
-	"ShopButton",
-	"MILO'S SHOP",
-	"shop",
-	0.34,
-	Color3.fromRGB(164, 116, 35),
-	Color3.fromRGB(247, 207, 86)
-)
-createNavigationButton(
-	"DumpButton",
-	"SALVAGE DUMP",
-	"dump",
-	0.42,
-	Color3.fromRGB(91, 67, 43),
-	Color3.fromRGB(151, 108, 66)
-)
+local function updateTravelPanel()
+	local snapshot = latestInventory
+	local unlocked = if snapshot then snapshot.unlockedTeleports or {} else { home = true }
+	for _, locationId in ipairs(Config.Teleports.Order) do
+		local definition = Config.Teleports.Locations[locationId]
+		local button = travelEntries[locationId]
+		local status = "LOADING"
+		if unlocked[locationId] then
+			status = "TRAVEL"
+		elseif
+			definition.MinimumLevel
+			and (not snapshot or (snapshot.level or 0) < definition.MinimumLevel)
+		then
+			status = string.format("LEVEL %d REQUIRED", definition.MinimumLevel)
+		elseif definition.RequiresLadder and (not snapshot or snapshot.ladderPlaced ~= true) then
+			status = "PLACE LADDER FIRST"
+		else
+			status = string.format("UNLOCK %s COINS", tostring(definition.Price))
+		end
+		button.Text = string.format("%s    |    %s", string.upper(definition.DisplayName), status)
+	end
+end
+
+travelButton.MouseButton1Click:Connect(function()
+	if navigationEnabled then
+		travelPanel.Visible = not travelPanel.Visible
+		updateTravelPanel()
+	end
+end)
+closeTravel.MouseButton1Click:Connect(function()
+	travelPanel.Visible = false
+end)
 
 local function setNavigationEnabled(enabled: boolean)
 	navigationEnabled = enabled
+	if not enabled then
+		travelPanel.Visible = false
+	end
 	for _, button in ipairs(navigationButtons) do
 		button.Active = enabled
 		button.AutoButtonColor = enabled
@@ -681,7 +742,6 @@ shopList.SortOrder = Enum.SortOrder.LayoutOrder
 shopList.Parent = shopItems
 
 local latestShopTools = {}
-local latestInventory = nil
 local activeShopClerk: BasePart? = nil
 local shopSessionOpen = false
 local shopSessionToken = 0
@@ -988,6 +1048,7 @@ local function requestDirtSpot(dirt: BasePart?)
 		or dialogue.Visible
 		or shop.Visible
 		or saleConfirmation.Visible
+		or travelPanel.Visible
 	then
 		return
 	end
@@ -1008,6 +1069,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			dialogue.Visible
 			or shop.Visible
 			or saleConfirmation.Visible
+			or travelPanel.Visible
 			or inventoryController:isVisible()
 		then
 			return
@@ -1028,6 +1090,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		or dialogue.Visible
 		or shop.Visible
 		or saleConfirmation.Visible
+		or travelPanel.Visible
 		or inventoryController:isVisible()
 	then
 		return
@@ -1167,6 +1230,7 @@ inventoryUpdated.OnClientEvent:Connect(function(snapshot)
 	updateQualitySpongeStatus()
 	updateToolStatus()
 	updateDirtHighlights()
+	updateTravelPanel()
 	if shop.Visible then
 		if shopTitle.Text == "SELL TO MILO" then
 			renderSellInventory()

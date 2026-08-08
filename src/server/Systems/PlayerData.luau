@@ -11,7 +11,9 @@ local Catalog = require(Shared:WaitForChild("Catalog"))
 local Config = require(Shared:WaitForChild("Config"))
 local ExperienceRules = require(Shared:WaitForChild("Domain"):WaitForChild("ExperienceRules"))
 local InventoryRules = require(Shared.Domain:WaitForChild("InventoryRules"))
+local PurchaseRules = require(Shared.Domain:WaitForChild("PurchaseRules"))
 local ProfileSchema = require(Shared.Domain:WaitForChild("ProfileSchema"))
+local TravelRules = require(Shared.Domain:WaitForChild("TravelRules"))
 local ProfileStore =
 	require(script.Parent.Parent:WaitForChild("Infrastructure"):WaitForChild("ProfileStore"))
 local Remotes = require(script.Parent:WaitForChild("Remotes"))
@@ -99,6 +101,7 @@ local function makeSnapshot(profile: any): any
 		qualitySpongeCharge = currentQualityCharge(profile),
 		ragFound = profile.ragFound,
 		ladderPlaced = profile.ladderPlaced,
+		unlockedTeleports = table.clone(profile.unlockedTeleports),
 		equippedItemId = profile.equippedItemId,
 		hotbarItemIds = table.clone(profile.hotbarItemIds),
 		inventory = inventory,
@@ -676,8 +679,7 @@ function PlayerData.purchaseTool(player: Player, toolId: string): (boolean, stri
 		end
 	end
 	if state.profile.coins < definition.Price then
-		return false,
-			string.format("You need %d more coins.", definition.Price - state.profile.coins)
+		return false, PurchaseRules.cannotAffordMessage(state.profile.coins, definition.Price)
 	end
 
 	state.profile.coins -= definition.Price
@@ -692,6 +694,40 @@ function PlayerData.purchaseTool(player: Player, toolId: string): (boolean, stri
 	end
 	markChanged(player)
 	return true, string.format("Purchased %s.", definition.DisplayName)
+end
+
+function PlayerData.hasTeleportUnlocked(player: Player, locationId: string): boolean
+	local state = states[player]
+	return state ~= nil and state.profile.unlockedTeleports[locationId] == true
+end
+
+function PlayerData.unlockTeleport(player: Player, locationId: string): (boolean, string)
+	local state = states[player]
+	local definition = Config.Teleports.Locations[locationId]
+	if not state or not definition then
+		return false, "That destination is not available."
+	end
+	if state.profile.unlockedTeleports[locationId] then
+		return true, ""
+	end
+	local progressionAllowed, progressionMessage = TravelRules.checkProgression(
+		state.profile.level,
+		state.profile.ladderPlaced,
+		definition.MinimumLevel,
+		definition.RequiresLadder,
+		definition.DisplayName
+	)
+	if not progressionAllowed then
+		return false, progressionMessage
+	end
+	if state.profile.coins < definition.Price then
+		return false, PurchaseRules.cannotAffordMessage(state.profile.coins, definition.Price)
+	end
+
+	state.profile.coins -= definition.Price
+	state.profile.unlockedTeleports[locationId] = true
+	markChanged(player)
+	return true, string.format("%s travel unlocked permanently.", definition.DisplayName)
 end
 
 function PlayerData.equipInventoryItem(player: Player, itemId: string): (boolean, string)

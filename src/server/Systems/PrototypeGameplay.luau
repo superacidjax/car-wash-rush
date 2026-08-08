@@ -18,6 +18,7 @@ local PrototypeGameplay = {}
 
 local SHARED_DUMP_CENTER = Vector3.new(-350, 0, 0)
 local LEVEL_TWO_DUMP_CENTER = Vector3.new(-700, 0, 0)
+local LADDER_PLACEMENT_POSITION = Vector3.new(-475, 0.55, 0)
 local VEHICLE_COLORS = {
 	Color3.fromRGB(232, 64, 64),
 	Color3.fromRGB(244, 135, 45),
@@ -42,7 +43,7 @@ local levelTwoTrashState = nil
 local levelTwoDumpsterState = nil
 local levelTwoDumpReference = nil
 local aircraftByPlayer = {}
-local laddersByPlayer = {}
+local sharedAccessLadder: Model? = nil
 local vehicleSchedules = {}
 local lastVehicleColorIndexes = {}
 local teleportCooldowns = {}
@@ -167,7 +168,7 @@ end
 
 local function beginCleaning(player: Player, dirt: BasePart, car: Model)
 	if car:GetAttribute("OwnerUserId") ~= player.UserId then
-		notify(player, "This car belongs to another player's safe zone.")
+		notify(player, "This vehicle belongs to another player.")
 		return
 	end
 	if not PlayerData.hasFoundRag(player) then
@@ -1354,9 +1355,14 @@ local function createSharedDump()
 		CFrame.new(dumpCenter + Vector3.new(0, 3.5, dumpDepth / 2))
 	)
 	createFenceSection(
-		"WestFence",
-		Vector3.new(0.45, 7, dumpDepth),
-		CFrame.new(dumpCenter + Vector3.new(-dumpWidth / 2, 3.5, 0))
+		"WestFenceNorth",
+		Vector3.new(0.45, 7, 84),
+		CFrame.new(dumpCenter + Vector3.new(-dumpWidth / 2, 3.5, -59))
+	)
+	createFenceSection(
+		"WestFenceSouth",
+		Vector3.new(0.45, 7, 84),
+		CFrame.new(dumpCenter + Vector3.new(-dumpWidth / 2, 3.5, 59))
 	)
 	createFenceSection(
 		"EastFenceNorth",
@@ -1466,7 +1472,7 @@ local function createSharedDump()
 		"LadderPlacement",
 		dump,
 		Vector3.new(12, 0.3, 12),
-		CFrame.new(dumpCenter + Vector3.new(-dumpWidth / 2 + 10, 0.55, 0)),
+		CFrame.new(LADDER_PLACEMENT_POSITION),
 		Color3.fromRGB(226, 168, 62),
 		Enum.Material.Neon,
 		0.35,
@@ -1738,9 +1744,22 @@ local function createPlayerAircraft(player: Player, slotIndex: number)
 		end
 	end
 	local center = aircraftBayCenter(slotIndex)
-	local plane = createPlane(player, CFrame.new(center + Vector3.new(0, 3, -40)))
-	local helicopter = createHelicopter(player, CFrame.new(center + Vector3.new(0, 4, 42)))
-	aircraftByPlayer[player] = { plane, helicopter }
+	local aircraft = {
+		createPlane(player, CFrame.new(center + Vector3.new(-28, 3, -42))),
+		createHelicopter(player, CFrame.new(center + Vector3.new(28, 4, -42))),
+		createPlane(
+			player,
+			CFrame.new(center + Vector3.new(28, 3, 42)) * CFrame.Angles(0, math.rad(180), 0)
+		),
+		createHelicopter(
+			player,
+			CFrame.new(center + Vector3.new(-28, 4, 42)) * CFrame.Angles(0, math.rad(180), 0)
+		),
+	}
+	for index, model in aircraft do
+		model.Name = string.format("%s_Aircraft_%d", player.Name, index)
+	end
+	aircraftByPlayer[player] = aircraft
 end
 
 local function refillFixedSalvage(state, isDumpster: boolean)
@@ -1805,7 +1824,7 @@ local function createLevelTwoDump()
 	local center = LEVEL_TWO_DUMP_CENTER
 	local width = 400
 	local depth = 620
-	local fenceHeight = 18
+	local fenceHeight = 13
 	createPart(
 		"AircraftYardFloor",
 		dump,
@@ -1815,37 +1834,137 @@ local function createLevelTwoDump()
 		Enum.Material.Ground
 	)
 
-	local function fence(name: string, size: Vector3, position: Vector3)
+	local perimeter = Instance.new("Model")
+	perimeter.Name = "PerimeterFence"
+	perimeter.Parent = dump
+	local function fenceRun(name: string, startPosition: Vector3, endPosition: Vector3)
+		local run = Instance.new("Model")
+		run.Name = name
+		run.Parent = perimeter
+		local delta = endPosition - startPosition
+		local length = delta.Magnitude
+		local direction = delta.Unit
+		local segmentCount = math.ceil(length / 24)
+		for index = 1, segmentCount do
+			local fromDistance = length * (index - 1) / segmentCount
+			local toDistance = length * index / segmentCount
+			local segmentLength = toDistance - fromDistance
+			local midpoint = startPosition + direction * ((fromDistance + toDistance) / 2)
+			local alongX = math.abs(delta.X) >= math.abs(delta.Z)
+			local size = if alongX
+				then Vector3.new(segmentLength, fenceHeight, 0.35)
+				else Vector3.new(0.35, fenceHeight, segmentLength)
+			createPart(
+				string.format("Mesh_%02d", index),
+				run,
+				size,
+				CFrame.new(midpoint + Vector3.new(0, fenceHeight / 2, 0)),
+				Color3.fromRGB(91, 101, 99),
+				Enum.Material.Metal,
+				0.68,
+				true
+			)
+			for _, height in ipairs({ 0.8, fenceHeight - 0.4 }) do
+				local railSize = if alongX
+					then Vector3.new(segmentLength, 0.25, 0.5)
+					else Vector3.new(0.5, 0.25, segmentLength)
+				createPart(
+					string.format("Rail_%02d_%d", index, height),
+					run,
+					railSize,
+					CFrame.new(midpoint + Vector3.new(0, height, 0)),
+					Color3.fromRGB(57, 63, 62),
+					Enum.Material.Metal
+				)
+			end
+			createPart(
+				string.format("Post_%02d", index),
+				run,
+				Vector3.new(0.7, fenceHeight + 1, 0.7),
+				CFrame.new(
+					startPosition
+						+ direction * fromDistance
+						+ Vector3.new(0, (fenceHeight + 1) / 2, 0)
+				),
+				Color3.fromRGB(49, 55, 54),
+				Enum.Material.Metal
+			)
+		end
 		createPart(
-			name,
-			dump,
-			size,
-			CFrame.new(position),
-			Color3.fromRGB(60, 66, 65),
-			Enum.Material.Metal,
-			0.42,
-			true
+			"EndPost",
+			run,
+			Vector3.new(0.7, fenceHeight + 1, 0.7),
+			CFrame.new(endPosition + Vector3.new(0, (fenceHeight + 1) / 2, 0)),
+			Color3.fromRGB(49, 55, 54),
+			Enum.Material.Metal
 		)
 	end
-	fence(
-		"NorthTallFence",
-		Vector3.new(width, fenceHeight, 0.8),
-		center + Vector3.new(0, fenceHeight / 2, -depth / 2)
+	fenceRun(
+		"NorthFence",
+		center + Vector3.new(-width / 2, 0, -depth / 2),
+		center + Vector3.new(width / 2, 0, -depth / 2)
 	)
-	fence(
-		"SouthTallFence",
-		Vector3.new(width, fenceHeight, 0.8),
-		center + Vector3.new(0, fenceHeight / 2, depth / 2)
+	fenceRun(
+		"SouthFence",
+		center + Vector3.new(-width / 2, 0, depth / 2),
+		center + Vector3.new(width / 2, 0, depth / 2)
 	)
-	fence(
-		"WestTallFence",
-		Vector3.new(0.8, fenceHeight, depth),
-		center + Vector3.new(-width / 2, fenceHeight / 2, 0)
+	fenceRun(
+		"WestFence",
+		center + Vector3.new(-width / 2, 0, -depth / 2),
+		center + Vector3.new(-width / 2, 0, depth / 2)
 	)
-	fence(
-		"EastTallFence",
-		Vector3.new(0.8, fenceHeight, depth),
-		center + Vector3.new(width / 2, fenceHeight / 2, 0)
+	fenceRun(
+		"EastFenceNorth",
+		center + Vector3.new(width / 2, 0, -depth / 2),
+		center + Vector3.new(width / 2, 0, -22)
+	)
+	fenceRun(
+		"EastFenceSouth",
+		center + Vector3.new(width / 2, 0, 22),
+		center + Vector3.new(width / 2, 0, depth / 2)
+	)
+
+	local accessGate = Instance.new("Model")
+	accessGate.Name = "AccessGate"
+	accessGate.Parent = dump
+	for _, zOffset in ipairs({ -22, 22 }) do
+		createPart(
+			"GatePost",
+			accessGate,
+			Vector3.new(1.2, fenceHeight + 1, 1.2),
+			CFrame.new(center + Vector3.new(width / 2, (fenceHeight + 1) / 2, zOffset)),
+			Color3.fromRGB(48, 54, 53),
+			Enum.Material.Metal
+		)
+	end
+	for _, zOffset in ipairs({ -11, 11 }) do
+		local door = createPart(
+			"GateDoor",
+			accessGate,
+			Vector3.new(0.45, fenceHeight - 1, 21),
+			CFrame.new(center + Vector3.new(width / 2, (fenceHeight - 1) / 2, zOffset)),
+			Color3.fromRGB(87, 97, 95),
+			Enum.Material.Metal,
+			0.64,
+			true
+		)
+		createPart(
+			"GateFrame",
+			accessGate,
+			Vector3.new(0.7, 0.4, 21),
+			door.CFrame * CFrame.new(0, (fenceHeight - 1) / 2, 0),
+			Color3.fromRGB(48, 54, 53),
+			Enum.Material.Metal
+		)
+	end
+	createPart(
+		"DumpConnector",
+		dump,
+		Vector3.new(15, 0.4, 44),
+		CFrame.new(Vector3.new(-492.5, 0.25, 0)),
+		Color3.fromRGB(72, 66, 54),
+		Enum.Material.Ground
 	)
 
 	local sign = createPart(
@@ -1858,11 +1977,11 @@ local function createLevelTwoDump()
 	)
 	addBillboard(sign, "LEVEL 2 AIRCRAFT YARD", Color3.fromRGB(255, 209, 112))
 
-	for pileIndex = 1, 26 do
+	for pileIndex = 1, 34 do
 		local side = if pileIndex % 2 == 0 then -1 else 1
 		local zOffset = -285 + ((pileIndex * 43) % 570)
 		local xOffset = side * (150 + (pileIndex % 3) * 12)
-		for scrapIndex = 1, 3 do
+		for scrapIndex = 1, 5 do
 			local size = Vector3.new(
 				4 + scrapIndex * 2,
 				2 + (pileIndex + scrapIndex) % 5,
@@ -1885,6 +2004,59 @@ local function createLevelTwoDump()
 			)
 		end
 	end
+	for moundIndex = 1, 14 do
+		local xOffset = (if moundIndex % 2 == 0 then -1 else 1) * (10 + (moundIndex % 3) * 7)
+		local zOffset = -275 + ((moundIndex * 109) % 550)
+		for pieceIndex = 1, 8 do
+			local size = Vector3.new(
+				7 + (pieceIndex % 4) * 3,
+				4 + (pieceIndex % 5) * 2,
+				7 + ((moundIndex + pieceIndex) % 4) * 3
+			)
+			local radius = 4 + pieceIndex * 1.1
+			createPart(
+				string.format("TallTrashPile_%02d_%02d", moundIndex, pieceIndex),
+				dump,
+				size,
+				CFrame.new(
+					center
+						+ Vector3.new(
+							xOffset + math.sin(pieceIndex) * radius,
+							size.Y / 2,
+							zOffset + math.cos(pieceIndex) * radius
+						)
+				)
+					* CFrame.Angles(
+						math.rad(pieceIndex * 4),
+						math.rad(moundIndex * 19 + pieceIndex * 23),
+						math.rad(pieceIndex * 3)
+					),
+				if pieceIndex % 3 == 0
+					then Color3.fromRGB(105, 76, 49)
+					else Color3.fromRGB(68, 76, 70),
+				Enum.Material.CorrodedMetal
+			)
+		end
+	end
+	for litterIndex = 1, 72 do
+		local xOffset = -175 + ((litterIndex * 83) % 350)
+		local zOffset = -285 + ((litterIndex * 137) % 570)
+		createPart(
+			string.format("ScatteredScrap_%03d", litterIndex),
+			dump,
+			Vector3.new(
+				1 + litterIndex % 4,
+				0.35 + (litterIndex % 3) * 0.25,
+				1 + (litterIndex * 2) % 5
+			),
+			CFrame.new(center + Vector3.new(xOffset, 0.7, zOffset))
+				* CFrame.Angles(0, math.rad(litterIndex * 29), math.rad(litterIndex % 4 * 8)),
+			if litterIndex % 4 == 0 then Color3.fromRGB(128, 81, 48) else Color3.fromRGB(76, 83, 78),
+			Enum.Material.CorrodedMetal,
+			0,
+			false
+		)
+	end
 
 	levelTwoTrashState = {
 		containers = {},
@@ -1894,9 +2066,9 @@ local function createLevelTwoDump()
 		total = Config.Trash.LevelTwoCanCount,
 	}
 	for index = 1, Config.Trash.LevelTwoCanCount do
-		local side = if index <= 6 then -1 else 1
-		local row = (index - 1) % 6
-		local position = center + Vector3.new(side * 170, 0.5, -245 + row * 98)
+		local side = if index <= Config.Trash.LevelTwoCanCount / 2 then -1 else 1
+		local row = (index - 1) % (Config.Trash.LevelTwoCanCount / 2)
+		local position = center + Vector3.new(side * 174, 0.5, -260 + row * 58)
 		local can = createTrashcan(dump, position, 100 + index)
 		table.insert(levelTwoTrashState.containers, can)
 		SecurePrompt.bind(can.prompt, Config.Trash.SearchSeconds, function(searchingPlayer)
@@ -1911,12 +2083,17 @@ local function createLevelTwoDump()
 		refilling = false,
 		total = Config.Trash.LevelTwoDumpsterCount,
 	}
-	for index, offset in ipairs({
-		Vector3.new(-150, 0.5, -285),
-		Vector3.new(150, 0.5, -285),
-		Vector3.new(-150, 0.5, 285),
-		Vector3.new(150, 0.5, 285),
-	}) do
+	local dumpsterOffsets = {
+		Vector3.new(-145, 0.5, -280),
+		Vector3.new(145, 0.5, -280),
+		Vector3.new(-145, 0.5, -185),
+		Vector3.new(145, 0.5, -185),
+		Vector3.new(-145, 0.5, 185),
+		Vector3.new(145, 0.5, 185),
+		Vector3.new(-145, 0.5, 280),
+		Vector3.new(145, 0.5, 280),
+	}
+	for index, offset in ipairs(dumpsterOffsets) do
 		local dumpster = createDumpster(dump, center + offset, 100 + index)
 		table.insert(levelTwoDumpsterState.containers, dumpster)
 		SecurePrompt.bind(
@@ -1941,61 +2118,78 @@ local function createLevelTwoDump()
 		)
 	end
 
-	return { model = dump }
+	local arrival = createPart(
+		"AircraftArrival",
+		dump,
+		Vector3.new(7, 0.2, 7),
+		CFrame.new(center + Vector3.new(155, 0.55, 45)),
+		Color3.fromRGB(120, 255, 150),
+		Enum.Material.Neon,
+		1,
+		false
+	)
+	return { model = dump, arrival = arrival }
 end
 
-local function createPlayerLadder(player: Player, slotIndex: number)
-	if laddersByPlayer[player] then
-		laddersByPlayer[player]:Destroy()
+local function ensureAccessLadder()
+	if sharedAccessLadder and sharedAccessLadder.Parent then
+		return
 	end
 	local ladder = Instance.new("Model")
-	ladder.Name = string.format("SalvageLadder_%d", player.UserId)
-	ladder:SetAttribute("OwnerUserId", player.UserId)
+	ladder.Name = "AircraftYardAccessLadder"
 	ladder.Parent = levelTwoDumpReference.model
-	local zOffset = -72 + ((slotIndex - 1) % 9) * 18
-	local base = Vector3.new(-492.5, 0, zOffset)
+	local base = LADDER_PLACEMENT_POSITION + Vector3.new(0, 0.15, 0)
 	for sideIndex, zRailOffset in ipairs({ -2.2, 2.2 }) do
 		createPart(
 			"Rail_" .. sideIndex,
 			ladder,
-			Vector3.new(1, 20, 0.8),
-			CFrame.new(base + Vector3.new(0, 10, zRailOffset)) * CFrame.Angles(0, 0, math.rad(-10)),
+			Vector3.new(1, 24, 0.8),
+			CFrame.new(base + Vector3.new(-8.2, 9, zRailOffset)) * CFrame.Angles(0, 0, math.rad(42)),
 			Color3.fromRGB(194, 132, 49),
 			Enum.Material.Wood,
 			0,
 			false
 		)
 	end
-	local climbPart
-	for rungIndex = 1, 9 do
-		local rung = createPart(
+	for rungIndex = 1, 11 do
+		createPart(
 			"Rung_" .. rungIndex,
 			ladder,
 			Vector3.new(0.8, 0.7, 5.2),
-			CFrame.new(base + Vector3.new((rungIndex - 1) * -0.38, 1.7 + rungIndex * 1.9, 0)),
+			CFrame.new(base + Vector3.new((rungIndex - 1) * -1.5, 1.2 + rungIndex * 1.65, 0)),
 			Color3.fromRGB(218, 158, 66),
 			Enum.Material.Wood,
 			0,
 			false
 		)
-		climbPart = climbPart or rung
 	end
-	local prompt = addPrompt(climbPart, "Climb", player.DisplayName .. "'s Ladder", 0.2)
-	SecurePrompt.bind(prompt, 0.2, function(climbingPlayer)
-		local root = getRootPart(climbingPlayer)
-		if root then
-			local destinationX = if root.Position.X > -492.5 then -516 else -470
-			climbingPlayer.Character:PivotTo(CFrame.new(destinationX, 4, zOffset))
-		end
-	end, function(climbingPlayer)
-		return climbingPlayer == player
-	end, function(climbingPlayer)
-		notify(
-			climbingPlayer,
-			"That ladder belongs to another player. Buy your own from Milo at Level 10."
+	local function addAccessPrompt(name: string, position: Vector3)
+		local promptPart = createPart(
+			name,
+			ladder,
+			Vector3.new(5, 7, 7),
+			CFrame.new(position),
+			Color3.fromRGB(255, 255, 255),
+			Enum.Material.SmoothPlastic,
+			1,
+			false
 		)
-	end)
-	laddersByPlayer[player] = ladder
+		local prompt = addPrompt(promptPart, "Climb", "Aircraft Yard Ladder", 0.2)
+		SecurePrompt.bind(prompt, 0.2, function(climbingPlayer)
+			local root = getRootPart(climbingPlayer)
+			if root and climbingPlayer.Character then
+				local destinationX = if root.Position.X > -492.5 then -516 else -470
+				climbingPlayer.Character:PivotTo(CFrame.new(destinationX, 4, 0))
+			end
+		end, function(climbingPlayer)
+			return PlayerData.hasPlacedLadder(climbingPlayer)
+		end, function(climbingPlayer)
+			notify(climbingPlayer, "Place your own Salvage Ladder on the yellow marker first.")
+		end)
+	end
+	addAccessPrompt("LevelOneAccessPrompt", Vector3.new(-475, 4, 0))
+	addAccessPrompt("AircraftAccessPrompt", Vector3.new(-512, 4, 0))
+	sharedAccessLadder = ladder
 end
 
 local function createSafeZone(player: Player, slotIndex: number): Model
@@ -2133,7 +2327,7 @@ local function setupPlayer(player: Player)
 	spawnDirtyCar(player)
 	createPlayerAircraft(player, slotIndex)
 	if PlayerData.hasPlacedLadder(player) then
-		createPlayerLadder(player, slotIndex)
+		ensureAccessLadder()
 	end
 	player.CharacterAdded:Connect(function(character)
 		task.wait(0.15)
@@ -2160,10 +2354,6 @@ local function cleanupPlayer(player: Player)
 			model:Destroy()
 		end
 	end
-	local ladder = laddersByPlayer[player]
-	if ladder then
-		ladder:Destroy()
-	end
 	local slotIndex = playerZoneSlots[player]
 	if slotIndex then
 		zoneOwners[slotIndex] = nil
@@ -2175,7 +2365,6 @@ local function cleanupPlayer(player: Player)
 	lastVehicleColorIndexes[player] = nil
 	teleportCooldowns[player] = nil
 	aircraftByPlayer[player] = nil
-	laddersByPlayer[player] = nil
 end
 
 function PrototypeGameplay.start(greybox)
@@ -2199,10 +2388,7 @@ function PrototypeGameplay.start(greybox)
 		local success, message = PlayerData.placeLadder(player)
 		notify(player, message)
 		if success then
-			local slotIndex = playerZoneSlots[player]
-			if slotIndex then
-				createPlayerLadder(player, slotIndex)
-			end
+			ensureAccessLadder()
 		end
 	end, function(player)
 		return PlayerData.getLevel(player) >= Config.LevelTwoDump.AccessLevel
@@ -2284,6 +2470,17 @@ function PrototypeGameplay.start(greybox)
 			notify(player, "Finish cleaning this spot before travelling.")
 			return
 		end
+		if not Config.Teleports.Locations[locationId] then
+			return
+		end
+		local unlocked, message = PlayerData.unlockTeleport(player, locationId)
+		if not unlocked then
+			notify(player, message)
+			return
+		end
+		if message ~= "" then
+			notify(player, message)
+		end
 
 		local destination
 		if locationId == "home" then
@@ -2293,6 +2490,8 @@ function PrototypeGameplay.start(greybox)
 			destination = greybox.shopArrival
 		elseif locationId == "dump" then
 			destination = sharedDumpReference and sharedDumpReference.arrival
+		elseif locationId == "aircraft" then
+			destination = levelTwoDumpReference and levelTwoDumpReference.arrival
 		end
 		if destination and destination:IsA("BasePart") then
 			teleportPlayer(player, destination)

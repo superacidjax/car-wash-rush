@@ -45,8 +45,8 @@ Config.Trash = {
 	DumpsterSearchSeconds = 10,
 	DumpsterMinimumLevel = 5,
 	DumpsterRewardMultiplier = 2,
-	LevelTwoCanCount = 12,
-	LevelTwoDumpsterCount = 4,
+	LevelTwoCanCount = 20,
+	LevelTwoDumpsterCount = 8,
 	LevelTwoDumpsterMinimumLevel = 10,
 	LevelTwoRewardMultiplier = 1.35,
 	RefillSeconds = 3,
@@ -65,6 +65,21 @@ Config.LevelTwoDump = {
 	AccessLevel = 10,
 	LadderPrice = 1000,
 	AircraftRedirtySeconds = 60,
+}
+
+Config.Teleports = {
+	Order = { "home", "shop", "dump", "aircraft" },
+	Locations = {
+		home = { DisplayName = "Home", Price = 0 },
+		shop = { DisplayName = "Milo's Shop", Price = 100 },
+		dump = { DisplayName = "Salvage Dump", Price = 500 },
+		aircraft = {
+			DisplayName = "Aircraft Yard",
+			Price = 1500,
+			MinimumLevel = 10,
+			RequiresLadder = true,
+		},
+	},
 }
 
 Config.RemoteLimits = {
