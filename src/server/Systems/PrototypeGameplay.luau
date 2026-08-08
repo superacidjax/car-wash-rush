@@ -246,6 +246,7 @@ local function beginCleaning(player: Player, dirt: BasePart, car: Model)
 		itemId = item.id,
 		toolId = item.toolId,
 		toolName = definition.DisplayName,
+		interactionType = definition.InteractionType or "click",
 		requiredClicks = requiredClicks,
 		progress = 0,
 		lastUpdate = os.clock(),
@@ -263,6 +264,7 @@ local function beginCleaning(player: Player, dirt: BasePart, car: Model)
 		requiredClicks = requiredClicks,
 		decayClicksPerSecond = Config.Cleaning.DecayClicksPerSecond,
 		toolName = definition.DisplayName,
+		interactionType = definition.InteractionType or "click",
 	})
 end
 
@@ -402,9 +404,9 @@ local function completeDirtSpot(player: Player, session)
 	end
 end
 
-local function handleCleaningClick(player: Player)
+local function handleCleaningAction(player: Player, interactionType: string)
 	local session = activeCleaning[player]
-	if not session then
+	if not session or session.interactionType ~= interactionType then
 		return
 	end
 
@@ -2553,7 +2555,12 @@ function PrototypeGameplay.start(greybox)
 			:FireClient(player, Catalog.getShopTools(), greybox.shopClerk)
 	end)
 
-	Remotes.connect("CleaningClick", handleCleaningClick)
+	Remotes.connect("CleaningClick", function(player)
+		handleCleaningAction(player, "click")
+	end)
+	Remotes.connect("CleaningTrace", function(player)
+		handleCleaningAction(player, "trace")
+	end)
 	Remotes.connect("ClaimQualitySpongeAbility", function(player)
 		local item = PlayerData.getEquippedToolItem(player)
 		if not item or item.toolId ~= "tool_quality_sponge" or item.durability <= 0 then

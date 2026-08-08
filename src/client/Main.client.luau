@@ -6,6 +6,8 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local AdvancedCleaningRules =
+	require(ReplicatedStorage.Shared.Domain:WaitForChild("AdvancedCleaningRules"))
 local Controllers = script.Parent:WaitForChild("Controllers")
 local CooperativeEventController = require(Controllers:WaitForChild("CooperativeEventController"))
 local HighlightController = require(Controllers:WaitForChild("HighlightController"))
@@ -24,6 +26,7 @@ local cleaningClick = remote("CleaningClick")
 local cleaningEnded = remote("CleaningEnded")
 local cleaningProgress = remote("CleaningProgress")
 local cleaningStarted = remote("CleaningStarted")
+local cleaningTrace = remote("CleaningTrace")
 local cooperativeEventAction = remote("CooperativeEventAction")
 local cooperativeEventMinigame = remote("CooperativeEventMinigame")
 local cooperativeEventState = remote("CooperativeEventState")
@@ -633,6 +636,10 @@ cleaningHint.ZIndex = 11
 cleaningHint.Parent = cleaningPanel
 
 local activeCleaning = false
+local activeCleaningMode = "click"
+local tracePointerHeld = false
+local lastTracePosition: Vector3? = nil
+local tracePixelCarry = 0
 local displayedProgress = 0
 local serverProgress = 0
 local requiredClicks = 1
@@ -661,12 +668,19 @@ end
 
 cleaningStarted.OnClientEvent:Connect(function(data)
 	activeCleaning = true
+	activeCleaningMode = data.interactionType or "click"
+	tracePointerHeld = false
+	lastTracePosition = nil
+	tracePixelCarry = 0
 	serverProgress = 0
 	displayedProgress = 0
 	requiredClicks = data.requiredClicks or 1
 	decayClicksPerSecond = data.decayClicksPerSecond or 0
 	lastProgressUpdate = os.clock()
 	cleaningTitle.Text = "CLEANING"
+	cleaningHint.Text = if activeCleaningMode == "trace"
+		then "HOLD AND TRACE BACK AND FORTH"
+		else "CLICK OR TAP ANYWHERE"
 	progressFill.Size = UDim2.fromScale(0, 1)
 	progressText.Text = string.format("0 / %d", requiredClicks)
 	cleaningPanel.Visible = true
@@ -683,6 +697,8 @@ end)
 
 cleaningEnded.OnClientEvent:Connect(function(completed, message)
 	activeCleaning = false
+	tracePointerHeld = false
+	lastTracePosition = nil
 	stopCleaningRender()
 	cleaningPanel.Visible = false
 	setNavigationEnabled(true)
@@ -1166,7 +1182,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if sprintButton and pointIsInside(sprintButton, input.Position) then
 			return
 		end
-		cleaningClick:FireServer()
+		if activeCleaningMode == "trace" then
+			tracePointerHeld = true
+			lastTracePosition = input.Position
+		else
+			cleaningClick:FireServer()
+		end
 		return
 	end
 
@@ -1195,6 +1216,38 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	params.IgnoreWater = true
 	local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
 	requestDirtSpot(if result and result.Instance:IsA("BasePart") then result.Instance else nil)
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if
+		not activeCleaning
+		or activeCleaningMode ~= "trace"
+		or not tracePointerHeld
+		or (
+			input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and input.UserInputType ~= Enum.UserInputType.Touch
+		)
+	then
+		return
+	end
+	local previous: Vector3 = lastTracePosition or input.Position
+	lastTracePosition = input.Position
+	local units
+	units, tracePixelCarry =
+		AdvancedCleaningRules.traceUnits((input.Position - previous).Magnitude, tracePixelCarry, 24)
+	for _ = 1, math.min(units, 2) do
+		cleaningTrace:FireServer()
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if
+		input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+	then
+		tracePointerHeld = false
+		lastTracePosition = nil
+	end
 end)
 
 notifyRemote.OnClientEvent:Connect(showNotification)
