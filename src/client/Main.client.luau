@@ -120,10 +120,17 @@ navigationLayout.Parent = navigationBar
 
 local navigationButtons = {}
 local navigationEnabled = true
-local function createNavigationButton(name: string, text: string, locationId: string, widthScale: number, background: Color3, strokeColor: Color3)
+local function createNavigationButton(
+	name: string,
+	text: string,
+	locationId: string,
+	widthScale: number,
+	background: Color3,
+	strokeColor: Color3
+)
 	local button = Instance.new("TextButton")
 	button.Name = name
-	button.Size = UDim2.new(widthScale, 0, 1, 0)
+	button.Size = UDim2.fromScale(widthScale, 1)
 	button.BackgroundColor3 = background
 	button.BorderSizePixel = 0
 	button.Text = text
@@ -144,9 +151,30 @@ local function createNavigationButton(name: string, text: string, locationId: st
 	return button
 end
 
-createNavigationButton("HomeButton", "HOME", "home", 0.2, Color3.fromRGB(48, 111, 154), Color3.fromRGB(120, 210, 240))
-createNavigationButton("ShopButton", "MILO'S SHOP", "shop", 0.34, Color3.fromRGB(164, 116, 35), Color3.fromRGB(247, 207, 86))
-createNavigationButton("DumpButton", "SALVAGE DUMP", "dump", 0.42, Color3.fromRGB(91, 67, 43), Color3.fromRGB(151, 108, 66))
+createNavigationButton(
+	"HomeButton",
+	"HOME",
+	"home",
+	0.2,
+	Color3.fromRGB(48, 111, 154),
+	Color3.fromRGB(120, 210, 240)
+)
+createNavigationButton(
+	"ShopButton",
+	"MILO'S SHOP",
+	"shop",
+	0.34,
+	Color3.fromRGB(164, 116, 35),
+	Color3.fromRGB(247, 207, 86)
+)
+createNavigationButton(
+	"DumpButton",
+	"SALVAGE DUMP",
+	"dump",
+	0.42,
+	Color3.fromRGB(91, 67, 43),
+	Color3.fromRGB(151, 108, 66)
+)
 
 local function setNavigationEnabled(enabled: boolean)
 	navigationEnabled = enabled
@@ -466,10 +494,12 @@ RunService.RenderStepped:Connect(function()
 	if not activeCleaning then
 		return
 	end
-	displayedProgress = math.max(0, serverProgress - (os.clock() - lastProgressUpdate) * decayClicksPerSecond)
+	displayedProgress =
+		math.max(0, serverProgress - (os.clock() - lastProgressUpdate) * decayClicksPerSecond)
 	local fraction = math.clamp(displayedProgress / requiredClicks, 0, 1)
 	progressFill.Size = UDim2.fromScale(fraction, 1)
-	progressText.Text = string.format("%d / %d", math.floor(displayedProgress + 0.5), requiredClicks)
+	progressText.Text =
+		string.format("%d / %d", math.floor(displayedProgress + 0.5), requiredClicks)
 end)
 
 local dialogue = Instance.new("Frame")
@@ -539,7 +569,7 @@ local shop = Instance.new("Frame")
 shop.Name = "ShopMenu"
 shop.AnchorPoint = Vector2.new(0.5, 0.5)
 shop.Position = UDim2.fromScale(0.5, 0.5)
-shop.Size = UDim2.new(0.84, 0, 0.82, 0)
+shop.Size = UDim2.fromScale(0.84, 0.82)
 shop.BackgroundColor3 = COLORS.Panel
 shop.BorderSizePixel = 0
 shop.Visible = false
@@ -643,7 +673,13 @@ local function renderShop(toolDefinitions)
 		details.Position = UDim2.fromOffset(18, 48)
 		details.Size = UDim2.new(1, -170, 0, 74)
 		details.BackgroundTransparency = 1
-		details.Text = string.format("Durability: %d | %d-%d clicks\n%s", definition.MaxDurability, definition.ClicksMin, definition.ClicksMax, definition.Description or "")
+		details.Text = string.format(
+			"Durability: %d | %d-%d clicks\n%s",
+			definition.MaxDurability,
+			definition.ClicksMin,
+			definition.ClicksMax,
+			definition.Description or ""
+		)
 		details.TextColor3 = Color3.fromRGB(202, 219, 222)
 		details.TextSize = 14
 		details.TextWrapped = true
@@ -701,7 +737,11 @@ RunService.RenderStepped:Connect(function()
 	end
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root or not root:IsA("BasePart") or (root.Position - activeShopClerk.Position).Magnitude > 22 then
+	if
+		not root
+		or not root:IsA("BasePart")
+		or (root.Position - activeShopClerk.Position).Magnitude > 22
+	then
 		closeShopSession()
 	end
 end)
@@ -711,11 +751,20 @@ local lastDirtRequestTarget: BasePart? = nil
 local function pointIsInside(gui: GuiObject, position: Vector3): boolean
 	local topLeft = gui.AbsolutePosition
 	local bottomRight = topLeft + gui.AbsoluteSize
-	return position.X >= topLeft.X and position.X <= bottomRight.X and position.Y >= topLeft.Y and position.Y <= bottomRight.Y
+	return position.X >= topLeft.X
+		and position.X <= bottomRight.X
+		and position.Y >= topLeft.Y
+		and position.Y <= bottomRight.Y
 end
 
 local function requestDirtSpot(dirt: BasePart?)
-	if not dirt or dirt:GetAttribute("IsDirtPatch") ~= true or activeCleaning or dialogue.Visible or shop.Visible then
+	if
+		not dirt
+		or dirt:GetAttribute("IsDirtPatch") ~= true
+		or activeCleaning
+		or dialogue.Visible
+		or shop.Visible
+	then
 		return
 	end
 	local now = os.clock()
@@ -728,7 +777,8 @@ local function requestDirtSpot(dirt: BasePart?)
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	local isPointerClick = input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+	local isPointerClick = input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
 	if activeCleaning and isPointerClick then
 		if dialogue.Visible or shop.Visible then
 			return
@@ -823,9 +873,13 @@ local function updateQualitySpongeStatus()
 	if qualityReady then
 		qualityTitle.Text = "CHARGE READY"
 		if UserInputService.TouchEnabled then
-			qualityHint.Text = string.format("TAP BOLT: +%d COINS", Config.Cleaning.QualitySpongeAbilityReward)
+			qualityHint.Text =
+				string.format("TAP BOLT: +%d COINS", Config.Cleaning.QualitySpongeAbilityReward)
 		else
-			qualityHint.Text = string.format("PRESS E TO CLAIM %d COINS", Config.Cleaning.QualitySpongeAbilityReward)
+			qualityHint.Text = string.format(
+				"PRESS E TO CLAIM %d COINS",
+				Config.Cleaning.QualitySpongeAbilityReward
+			)
 		end
 	else
 		qualityTitle.Text = "QUALITY CHARGE"
@@ -843,7 +897,9 @@ local function updateToolStatus()
 	local equippedId = latestInventory.equippedItemId
 	for _, item in ipairs(latestInventory.inventory) do
 		if item.id == equippedId then
-			local state = if item.durability <= 0 then "BROKEN" else string.format("%d/%d", item.durability, item.maxDurability)
+			local state = if item.durability <= 0
+				then "BROKEN"
+				else string.format("%d/%d", item.durability, item.maxDurability)
 			toolStatus.Text = string.format("%s  |  %s", item.displayName, state)
 			return
 		end
@@ -928,8 +984,21 @@ end
 ContextActionService:BindAction("CarWashRushSprint", sprintAction, true, Enum.KeyCode.LeftShift)
 ContextActionService:SetTitle("CarWashRushSprint", "Sprint")
 ContextActionService:SetPosition("CarWashRushSprint", UDim2.new(1, -105, 1, -275))
-ContextActionService:BindActionAtPriority("CarWashRushDisableJump", blockJump, false, 3000, Enum.KeyCode.Space, Enum.KeyCode.ButtonA)
-ContextActionService:BindActionAtPriority("CarWashRushQualityAbility", qualityAbilityAction, false, 2500, Enum.KeyCode.E)
+ContextActionService:BindActionAtPriority(
+	"CarWashRushDisableJump",
+	blockJump,
+	false,
+	3000,
+	Enum.KeyCode.Space,
+	Enum.KeyCode.ButtonA
+)
+ContextActionService:BindActionAtPriority(
+	"CarWashRushQualityAbility",
+	qualityAbilityAction,
+	false,
+	2500,
+	Enum.KeyCode.E
+)
 
 local function configureLocalCharacter(character: Model)
 	setSprinting(false)
@@ -941,7 +1010,11 @@ local function configureLocalCharacter(character: Model)
 	local mouse = player:GetMouse()
 	local connectedTools = {}
 	local function connectTool(tool: Instance)
-		if not tool:IsA("Tool") or tool:GetAttribute("CarWashRushTool") ~= true or connectedTools[tool] then
+		if
+			not tool:IsA("Tool")
+			or tool:GetAttribute("CarWashRushTool") ~= true
+			or connectedTools[tool]
+		then
 			return
 		end
 		connectedTools[tool] = true

@@ -49,7 +49,11 @@ local function normalizeProfile(rawData)
 		profile.experience = math.max(0, math.floor(rawData.experience))
 	end
 	if type(rawData.qualitySpongeCharge) == "number" then
-		profile.qualitySpongeCharge = math.clamp(math.floor(rawData.qualitySpongeCharge), 0, Config.Cleaning.QualitySpongeChargeRequired)
+		profile.qualitySpongeCharge = math.clamp(
+			math.floor(rawData.qualitySpongeCharge),
+			0,
+			Config.Cleaning.QualitySpongeChargeRequired
+		)
 	end
 	profile.ragFound = rawData.ragFound == true
 	if type(rawData.equippedItemId) == "string" then
@@ -58,13 +62,21 @@ local function normalizeProfile(rawData)
 
 	if type(rawData.inventory) == "table" then
 		for _, rawItem in ipairs(rawData.inventory) do
-			if type(rawItem) == "table" and type(rawItem.id) == "string" and type(rawItem.toolId) == "string" then
+			if
+				type(rawItem) == "table"
+				and type(rawItem.id) == "string"
+				and type(rawItem.toolId) == "string"
+			then
 				local definition = Catalog.getTool(rawItem.toolId)
 				if definition then
 					table.insert(profile.inventory, {
 						id = rawItem.id,
 						toolId = rawItem.toolId,
-						durability = math.clamp(math.floor(tonumber(rawItem.durability) or 0), 0, definition.MaxDurability),
+						durability = math.clamp(
+							math.floor(tonumber(rawItem.durability) or 0),
+							0,
+							definition.MaxDurability
+						),
 					})
 				end
 			end
@@ -105,7 +117,9 @@ local function makeSnapshot(profile)
 			displayName = definition.DisplayName,
 			durability = item.durability,
 			maxDurability = definition.MaxDurability,
-			resaleValue = math.floor(definition.BaseResaleValue * item.durability / definition.MaxDurability),
+			resaleValue = math.floor(
+				definition.BaseResaleValue * item.durability / definition.MaxDurability
+			),
 		})
 	end
 
@@ -138,8 +152,10 @@ local function updateReplicatedValues(player: Player)
 	local equippedValue = profileFolder and profileFolder:FindFirstChild("EquippedItemId")
 	local levelValue = profileFolder and profileFolder:FindFirstChild("Level")
 	local experienceValue = profileFolder and profileFolder:FindFirstChild("Experience")
-	local experienceRequiredValue = profileFolder and profileFolder:FindFirstChild("ExperienceRequired")
-	local qualitySpongeChargeValue = profileFolder and profileFolder:FindFirstChild("QualitySpongeCharge")
+	local experienceRequiredValue = profileFolder
+		and profileFolder:FindFirstChild("ExperienceRequired")
+	local qualitySpongeChargeValue = profileFolder
+		and profileFolder:FindFirstChild("QualitySpongeCharge")
 	if ragFoundValue and ragFoundValue:IsA("BoolValue") then
 		ragFoundValue.Value = profile.ragFound
 	end
@@ -171,8 +187,19 @@ local function updateToolInstance(player: Player, item)
 
 	local definition = Catalog.getTool(item.toolId)
 	local prefix = if item.durability <= 0 then "Broken " else ""
-	tool.Name = string.format("%s%s [%d/%d]", prefix, definition.DisplayName, item.durability, definition.MaxDurability)
-	tool.ToolTip = string.format("%s - Durability %d/%d", definition.DisplayName, item.durability, definition.MaxDurability)
+	tool.Name = string.format(
+		"%s%s [%d/%d]",
+		prefix,
+		definition.DisplayName,
+		item.durability,
+		definition.MaxDurability
+	)
+	tool.ToolTip = string.format(
+		"%s - Durability %d/%d",
+		definition.DisplayName,
+		item.durability,
+		definition.MaxDurability
+	)
 	tool:SetAttribute("Durability", item.durability)
 end
 
@@ -354,7 +381,13 @@ local function loadPlayer(player: Player)
 	else
 		profiles[player] = createDefaultProfile()
 		canSaveProfiles[player] = false
-		warn(string.format("[Car Wash Rush] DataStore unavailable for %s; using session data only: %s", player.Name, tostring(result)))
+		warn(
+			string.format(
+				"[Car Wash Rush] DataStore unavailable for %s; using session data only: %s",
+				player.Name,
+				tostring(result)
+			)
+		)
 	end
 
 	player:SetAttribute("CarWashRushProfileLoaded", true)

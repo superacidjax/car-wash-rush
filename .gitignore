@@ -7,3 +7,6 @@
 *.rbxlx.lock
 *.tmp
 *.log
+/DevPackages/
+/build/
+/test-results/
