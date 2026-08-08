@@ -1,5 +1,23 @@
 # Car Wash Rush
 
+Roblox city sandbox tycoon prototype built with Rojo.
+
+## Development
+
+```bash
+rokit install
+wally install
+rojo serve
+```
+
+Run all local quality gates and Roblox-engine unit tests:
+
+```bash
+./scripts/test.sh
+```
+
+See [Architecture](docs/ARCHITECTURE.md) and [Testing](docs/TESTING.md) for persistence, security, scaling, and release-test details.
+
 Roblox/Rojo prototype for the car wash tycoon game.
 
 ## Current Prototype
