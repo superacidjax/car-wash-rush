@@ -661,6 +661,28 @@ function PlayerData.incrementLevelOneCarsCompleted(player: Player): number
 	return state.profile.levelOneCarsCompleted
 end
 
+function PlayerData.setLevelForStudio(player: Player, level: number): boolean
+	local state = states[player]
+	if not RunService:IsStudio() or not state then
+		return false
+	end
+	state.profile.level = math.max(0, math.floor(level))
+	state.profile.experience = 0
+	markChanged(player)
+	return true
+end
+
+function PlayerData.resetForStudio(player: Player): boolean
+	local state = states[player]
+	if not RunService:IsStudio() or not state then
+		return false
+	end
+	state.profile = ProfileSchema.default()
+	rebuildBackpack(player)
+	markChanged(player)
+	return true
+end
+
 function PlayerData.hasFoundRag(player: Player): boolean
 	local state = states[player]
 	return state ~= nil and state.profile.ragFound == true

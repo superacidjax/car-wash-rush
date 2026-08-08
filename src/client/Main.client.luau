@@ -10,6 +10,7 @@ local AdvancedCleaningRules =
 	require(ReplicatedStorage.Shared.Domain:WaitForChild("AdvancedCleaningRules"))
 local Controllers = script.Parent:WaitForChild("Controllers")
 local CooperativeEventController = require(Controllers:WaitForChild("CooperativeEventController"))
+local DevelopmentController = require(Controllers:WaitForChild("DevelopmentController"))
 local HighlightController = require(Controllers:WaitForChild("HighlightController"))
 local DemandController = require(Controllers:WaitForChild("DemandController"))
 local InventoryController = require(Controllers:WaitForChild("InventoryController"))
@@ -31,6 +32,7 @@ local cooperativeEventAction = remote("CooperativeEventAction")
 local cooperativeEventMinigame = remote("CooperativeEventMinigame")
 local cooperativeEventState = remote("CooperativeEventState")
 local demandStateUpdated = remote("DemandStateUpdated")
+local devCommand = remote("DevCommand")
 local claimQualitySpongeAbility = remote("ClaimQualitySpongeAbility")
 local equipInventoryItem = remote("EquipInventoryItem")
 local forceCooperativeEvent = remote("ForceCooperativeEvent")
@@ -71,8 +73,8 @@ CooperativeEventController.new(screenGui, {
 	minigame = cooperativeEventMinigame,
 	state = cooperativeEventState,
 	request = requestCooperativeEventState,
-	force = forceCooperativeEvent,
 })
+DevelopmentController.new(screenGui, devCommand, forceCooperativeEvent)
 
 local highlightController = HighlightController.new(player, Config.World.PrototypeCarsFolderName)
 local inventoryController = InventoryController.new(screenGui, {

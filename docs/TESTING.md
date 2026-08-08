@@ -19,7 +19,7 @@ This performs:
 
 The engine wrapper requires the explicit `CAR_WASH_RUSH_TESTS_PASSED` marker because the Studio CLI can return process code 0 after a script error.
 
-The world smoke runner starts the real greybox and gameplay systems, then verifies both salvage districts, the tall aircraft-yard fence, ladder placement point, fixed container counts, and ladder catalog gates. It requires the `CAR_WASH_RUSH_WORLD_SMOKE_PASSED` marker.
+The world smoke runner starts the real greybox and gameplay systems, then verifies both salvage districts, the cooperative event lot and bus, all six event stations, fencing, ladder placement, fixed container counts, and catalog gates. It requires the `CAR_WASH_RUSH_WORLD_SMOKE_PASSED` marker.
 
 ## Fast checks
 
@@ -44,7 +44,12 @@ Current high-value coverage includes:
 - Session locking, lease expiry, save ownership, and immutable snapshots.
 - Remote token-bucket exhaustion and refill.
 - Server-timed hold boundaries.
-- Dynamic plot allocation beyond normal server size.
+- Eight-player capacity and ninth-player allocation rejection.
+- Per-player rag onboarding over shared depleted loot.
+- Globally deterministic city-demand windows and modifiers.
+- Cooperative event scaling, participation, and token boundaries.
+- Assistance permissions, helper wages, and owner bonuses.
+- Chaos protection/cooldown and sponge tracing distance.
 
 ## DataStore integration tests
 
@@ -54,13 +59,4 @@ The next integration tier should use Roblox Open Cloud Luau Execution with adult
 
 ## Manual multiplayer release check
 
-Before a release, test with at least two real accounts in the private test experience and verify:
-
-- Each player gets a different plot and private car.
-- Shared salvage loot disappears for everyone and refills once all containers are searched.
-- A second server cannot load a profile with an active session lease.
-- Inventory, durability, per-sponge charge, coins, XP, and RV cadence survive a reconnect.
-- Mobile touch controls and small-screen inventory rows remain usable.
-- Streaming never strands a player after Home, Shop, or Dump travel.
-- Milo is the only place tools can be sold, and sale confirmation uses the current durability value.
-- Level-10 ladder access is private, while aircraft-yard containers remain shared.
+Follow the repeatable [Multiplayer Test Manual](MULTIPLAYER_TESTING.md). It contains the private test-experience setup, exact two-player matrix, eight-player load gate, disconnect/rejoin tests, mixed mobile/desktop run, cross-server demand check, and evidence required for release.

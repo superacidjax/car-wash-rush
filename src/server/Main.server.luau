@@ -5,6 +5,7 @@ local Systems = script.Parent:WaitForChild("Systems")
 
 local GreyboxStarterCorner = require(Systems:WaitForChild("GreyboxStarterCorner"))
 local DemandSystem = require(Systems:WaitForChild("DemandSystem"))
+local DevelopmentSystem = require(Systems:WaitForChild("DevelopmentSystem"))
 local CooperativeEventSystem = require(Systems:WaitForChild("CooperativeEventSystem"))
 local MovementSystem = require(Systems:WaitForChild("MovementSystem"))
 local PlayerData = require(Systems:WaitForChild("PlayerData"))
@@ -13,6 +14,7 @@ local Remotes = require(Systems:WaitForChild("Remotes"))
 
 Remotes.start(Config.RemotesFolderName)
 PlayerData.start()
+DevelopmentSystem.start()
 
 local greybox = nil
 if Config.GenerateGreyboxOnStart then

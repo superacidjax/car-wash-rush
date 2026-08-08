@@ -11,6 +11,8 @@ local AssistanceRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("As
 local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
 local OnboardingRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("OnboardingRules"))
 local PlotRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("PlotRules"))
+local ServerCapacityRules =
+	require(ReplicatedStorage.Shared.Domain:WaitForChild("ServerCapacityRules"))
 local VehicleRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("VehicleRules"))
 local PlayerData = require(script.Parent:WaitForChild("PlayerData"))
 local DemandSystem = require(script.Parent:WaitForChild("DemandSystem"))
@@ -2438,15 +2440,17 @@ local function createSafeZone(player: Player, slotIndex: number): Model
 end
 
 local function claimZoneSlot(player: Player): number?
-	local slotIndex = 1
-	while true do
-		if not zoneOwners[slotIndex] then
-			zoneOwners[slotIndex] = player
-			playerZoneSlots[player] = slotIndex
-			return slotIndex
-		end
-		slotIndex += 1
+	local occupied = {}
+	for slotIndex in zoneOwners do
+		occupied[slotIndex] = true
 	end
+	local slotIndex =
+		ServerCapacityRules.firstAvailableSlot(occupied, Config.Multiplayer.PrototypeMaxPlayers)
+	if slotIndex then
+		zoneOwners[slotIndex] = player
+		playerZoneSlots[player] = slotIndex
+	end
+	return slotIndex
 end
 
 local function moveCharacterToZone(player: Player, character: Model)
@@ -2463,7 +2467,12 @@ local function setupPlayer(player: Player)
 	end
 	local slotIndex = claimZoneSlot(player)
 	if not slotIndex then
-		notify(player, "All prototype safe zones are currently occupied.")
+		player:Kick(
+			string.format(
+				"This prototype currently supports %d players per server. Please join another server.",
+				Config.Multiplayer.PrototypeMaxPlayers
+			)
+		)
 		return
 	end
 

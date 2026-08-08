@@ -164,6 +164,7 @@ Config.RemoteLimits = {
 	CleaningClick = { Rate = 15, Burst = 20 },
 	CleaningTrace = { Rate = 12, Burst = 16 },
 	CooperativeEventAction = { Rate = 14, Burst = 20 },
+	DevCommand = { Rate = 2, Burst = 4 },
 	ClaimQualitySpongeAbility = { Rate = 2, Burst = 3 },
 	EquipInventoryItem = { Rate = 3, Burst = 5 },
 	PurchaseTool = { Rate = 2, Burst = 4 },

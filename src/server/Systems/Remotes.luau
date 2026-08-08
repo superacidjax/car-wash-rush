@@ -17,6 +17,7 @@ local REMOTE_NAMES = {
 	"CooperativeEventMinigame",
 	"CooperativeEventState",
 	"DemandStateUpdated",
+	"DevCommand",
 	"ClaimQualitySpongeAbility",
 	"EquipInventoryItem",
 	"ForceCooperativeEvent",

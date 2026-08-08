@@ -388,27 +388,6 @@ function CooperativeEventController.new(parent: ScreenGui, remotes: any): any
 		end
 	end)
 
-	if RunService:IsStudio() and remotes.force then
-		local forceButton = Instance.new("TextButton")
-		forceButton.Name = "ForceBusEvent"
-		forceButton.AnchorPoint = Vector2.new(1, 0)
-		forceButton.Position = UDim2.new(1, -18, 0, 18)
-		forceButton.Size = UDim2.fromOffset(142, 38)
-		forceButton.BackgroundColor3 = Color3.fromRGB(73, 54, 101)
-		forceButton.BorderSizePixel = 0
-		forceButton.Text = "TEST BUS EVENT"
-		forceButton.TextColor3 = Color3.new(1, 1, 1)
-		forceButton.TextSize = 13
-		forceButton.Font = Enum.Font.GothamBold
-		forceButton.ZIndex = 70
-		forceButton.Parent = parent
-		addCorner(forceButton, 5)
-		addStroke(forceButton, Color3.fromRGB(181, 143, 230), 2)
-		forceButton.MouseButton1Click:Connect(function()
-			remotes.force:FireServer()
-		end)
-	end
-
 	remotes.request:FireServer()
 	return self
 end
