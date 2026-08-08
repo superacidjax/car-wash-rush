@@ -20,6 +20,12 @@ Config.Assistance = {
 	OwnerCooperationBonusMultiplier = 0.1,
 }
 
+Config.Chaos = {
+	ProtectedCompletedCars = 3,
+	Chance = 0.12,
+	Types = { "customer_roll", "unusual_dirt" },
+}
+
 Config.Demand = {
 	IntervalSeconds = 20 * 60,
 	MinimumDurationSeconds = 8 * 60,

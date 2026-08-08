@@ -6,6 +6,7 @@ local Catalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("C
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local CleaningRules =
 	require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("CleaningRules"))
+local ChaosRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("ChaosRules"))
 local AssistanceRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("AssistanceRules"))
 local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
 local OnboardingRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("OnboardingRules"))
@@ -52,6 +53,7 @@ local aircraftByPlayer = {}
 local sharedAccessLadder: Model? = nil
 local vehicleSchedules = {}
 local lastVehicleColorIndexes = {}
+local lastVehicleHadChaos = {}
 local teleportCooldowns = {}
 
 local function createPart(
@@ -284,7 +286,22 @@ local function completeDirtSpot(player: Player, session)
 		dirt:Destroy()
 	end
 
-	local completedVehicle = car and car.Parent and countRemainingDirt(car) == 0
+	local remainingDirt = if car and car.Parent then countRemainingDirt(car) else 0
+	if
+		car
+		and car.Parent
+		and remainingDirt > 0
+		and car:GetAttribute("ChaosType") == "customer_roll"
+		and car:GetAttribute("ChaosTriggered") ~= true
+	then
+		car:SetAttribute("ChaosTriggered", true)
+		car:PivotTo(car:GetPivot() * CFrame.new(0, 0, -4))
+		local owner = session.owner
+		if owner and owner.Parent then
+			notify(owner, "The customer rolled forward! The wash bay shifted under you.")
+		end
+	end
+	local completedVehicle = car and car.Parent and remainingDirt == 0
 	local completionCoins = if completedVehicle
 		then car:GetAttribute("CompletionCoins") or 25
 		else 0
@@ -633,12 +650,18 @@ local function addDirtPatches(
 	end
 	for dirtIndex = 1, math.min(dirtCount, #candidateIndexes) do
 		local candidate = candidates[candidateIndexes[dirtIndex]]
+		local unusualDirt = car:GetAttribute("ChaosType") == "unusual_dirt"
+		local dirtColor = if unusualDirt
+			then if dirtIndex % 2 == 0
+				then Color3.fromRGB(82, 125, 54)
+				else Color3.fromRGB(120, 65, 126)
+			else Color3.fromRGB(104, 67, 31)
 		local dirt = createPart(
 			"DirtPatch_" .. dirtIndex,
 			car,
 			candidate.Size,
 			baseCFrame * candidate.Offset,
-			Color3.fromRGB(104, 67, 31),
+			dirtColor,
 			Enum.Material.Mud,
 			0,
 			false
@@ -663,7 +686,8 @@ local function createVehicle(
 	player: Player,
 	spawnCFrame: CFrame,
 	definition,
-	vehicleColor: Color3
+	vehicleColor: Color3,
+	chaosType: string?
 ): Model
 	local car = Instance.new("Model")
 	car.Name = string.format("%s_%s", player.Name, definition.Id)
@@ -674,6 +698,7 @@ local function createVehicle(
 	car:SetAttribute("CompletionExperience", definition.CompletionExperience)
 	car:SetAttribute("VehicleColor", vehicleColor)
 	car:SetAttribute("RequiredCleaningTier", 1)
+	car:SetAttribute("ChaosType", chaosType or "")
 	car.Parent = carsFolder
 
 	if definition.Id == "pickup_truck" then
@@ -731,6 +756,7 @@ local function createVehicle(
 			baseCFrame,
 			PICKUP_DIRT_CANDIDATES,
 			chooseWeightedCount(definition.DirtCountWeights, 10)
+				+ if chaosType == "unusual_dirt" then 2 else 0
 		)
 	elseif definition.Id == "rv" then
 		local baseCFrame = spawnCFrame + Vector3.new(0, 5, 0)
@@ -880,6 +906,7 @@ local function createVehicle(
 			baseCFrame,
 			RV_DIRT_CANDIDATES,
 			math.random(definition.DirtCountMin, definition.DirtCountMax)
+				+ if chaosType == "unusual_dirt" then 2 else 0
 		)
 	else
 		local baseCFrame = spawnCFrame + Vector3.new(0, 2.5, 0)
@@ -928,6 +955,7 @@ local function createVehicle(
 			baseCFrame,
 			SMALL_CAR_DIRT_CANDIDATES,
 			chooseWeightedCount(definition.DirtCountWeights, 6)
+				+ if chaosType == "unusual_dirt" then 2 else 0
 		)
 	end
 
@@ -1000,12 +1028,26 @@ spawnDirtyCar = function(player: Player)
 	end
 	local spawnMarker = zone:FindFirstChild("CarSpawn")
 	if spawnMarker and spawnMarker:IsA("BasePart") then
+		local chaosType = ChaosRules.choose(
+			PlayerData.getLevelOneCarsCompleted(player),
+			Config.Chaos.ProtectedCompletedCars,
+			lastVehicleHadChaos[player] == true,
+			Config.Chaos.Chance,
+			math.random(),
+			math.random(),
+			Config.Chaos.Types
+		)
+		lastVehicleHadChaos[player] = chaosType ~= nil
 		activeCars[player] = createVehicle(
 			player,
 			spawnMarker.CFrame,
 			chooseVehicleDefinition(player),
-			chooseVehicleColor(player)
+			chooseVehicleColor(player),
+			chaosType
 		)
+		if chaosType == "unusual_dirt" then
+			notify(player, "Rare arrival: this customer brought a very unusual dirt pattern.")
+		end
 	end
 end
 
@@ -2465,6 +2507,7 @@ local function cleanupPlayer(player: Player)
 	playerZoneSlots[player] = nil
 	vehicleSchedules[player] = nil
 	lastVehicleColorIndexes[player] = nil
+	lastVehicleHadChaos[player] = nil
 	teleportCooldowns[player] = nil
 	aircraftByPlayer[player] = nil
 end
