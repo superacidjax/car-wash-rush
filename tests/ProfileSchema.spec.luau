@@ -18,9 +18,15 @@ describe("ProfileSchema", function()
 			},
 		})
 
-		expect(profile.version).toBe(4)
+		expect(profile.version).toBe(5)
 		expect(profile.inventory[1].qualityCharge).toBe(0)
 		expect(profile.inventory[2].qualityCharge).toBe(7)
+	end)
+
+	it("persists placed ladder access", function()
+		local profile = ProfileSchema.normalize({ ladderPlaced = true })
+
+		expect(profile.ladderPlaced).toBe(true)
 	end)
 
 	it("drops broken or unknown tools and repairs duplicate ids", function()

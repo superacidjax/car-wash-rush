@@ -4,6 +4,8 @@ local Workspace = game:GetService("Workspace")
 
 local Catalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Catalog"))
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local CleaningRules =
+	require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("CleaningRules"))
 local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
 local PlotRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("PlotRules"))
 local VehicleRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("VehicleRules"))
@@ -15,6 +17,7 @@ local SecurePrompt =
 local PrototypeGameplay = {}
 
 local SHARED_DUMP_CENTER = Vector3.new(-350, 0, 0)
+local LEVEL_TWO_DUMP_CENTER = Vector3.new(-700, 0, 0)
 local VEHICLE_COLORS = {
 	Color3.fromRGB(232, 64, 64),
 	Color3.fromRGB(244, 135, 45),
@@ -35,6 +38,11 @@ local activeCleaning = {}
 local sharedTrashState = nil
 local sharedDumpsterState = nil
 local sharedDumpReference = nil
+local levelTwoTrashState = nil
+local levelTwoDumpsterState = nil
+local levelTwoDumpReference = nil
+local aircraftByPlayer = {}
+local laddersByPlayer = {}
 local vehicleSchedules = {}
 local lastVehicleColorIndexes = {}
 local teleportCooldowns = {}
@@ -182,6 +190,17 @@ local function beginCleaning(player: Player, dirt: BasePart, car: Model)
 		notify(player, "That tool is broken. Equip another one.")
 		return
 	end
+	local requiredTierAttribute = car:GetAttribute("RequiredCleaningTier")
+	local requiredTier = if type(requiredTierAttribute) == "number"
+		then requiredTierAttribute
+		else 1
+	if not CleaningRules.canClean(definition.CleaningTier, requiredTier) then
+		notify(
+			player,
+			"This tool is not powerful enough for aircraft grime. Find a Level 2 cleaning tool."
+		)
+		return
+	end
 
 	cancelCleaning(player)
 	local requiredClicks = math.random(definition.ClicksMin, definition.ClicksMax)
@@ -205,6 +224,7 @@ local function beginCleaning(player: Player, dirt: BasePart, car: Model)
 end
 
 local spawnDirtyCar
+local redirtyAircraft
 
 local function announceLevelUp(player: Player, levelsGained: number, newLevel: number)
 	if levelsGained > 0 then
@@ -254,6 +274,15 @@ local function completeDirtSpot(player: Player, session)
 	end
 
 	if completedVehicle then
+		if car:GetAttribute("RequiredCleaningTier") == 2 then
+			notify(player, "Aircraft cleaned. The old metal will collect grime again later.")
+			task.delay(Config.LevelTwoDump.AircraftRedirtySeconds, function()
+				if player.Parent and car.Parent then
+					redirtyAircraft(player, car)
+				end
+			end)
+			return
+		end
 		local vehicleName = car:GetAttribute("VehicleDisplayName") or "Vehicle"
 		notify(
 			player,
@@ -453,11 +482,11 @@ end
 for _, candidate in ipairs({
 	{
 		Size = Vector3.new(3.8, 0.22, 3.2),
-		Offset = CFrame.new(-3.2, -2.2, -16.75) * CFrame.Angles(math.rad(90), 0, 0),
+		Offset = CFrame.new(-3.2, 4.38, -10.5),
 	},
 	{
 		Size = Vector3.new(3.8, 0.22, 3.2),
-		Offset = CFrame.new(3.2, -2.2, -16.75) * CFrame.Angles(math.rad(90), 0, 0),
+		Offset = CFrame.new(3.2, 4.38, -10.5),
 	},
 	{
 		Size = Vector3.new(3.8, 0.22, 3.2),
@@ -536,6 +565,7 @@ local function addDirtPatches(
 		)
 		dirt:SetAttribute("IsDirtPatch", true)
 		dirt:SetAttribute("OwnerUserId", player.UserId)
+		dirt:SetAttribute("RequiredCleaningTier", car:GetAttribute("RequiredCleaningTier") or 1)
 
 		local highlight = Instance.new("Highlight")
 		highlight.Name = "DirtHighlight"
@@ -563,6 +593,7 @@ local function createVehicle(
 	car:SetAttribute("CompletionCoins", definition.CompletionCoins)
 	car:SetAttribute("CompletionExperience", definition.CompletionExperience)
 	car:SetAttribute("VehicleColor", vehicleColor)
+	car:SetAttribute("RequiredCleaningTier", 1)
 	car.Parent = carsFolder
 
 	if definition.Id == "pickup_truck" then
@@ -1169,8 +1200,7 @@ local function createDumpster(parent: Model, position: Vector3, index: number)
 		table.insert(debris, scrap)
 	end
 
-	local prompt =
-		addPrompt(body, "Search - Level 5", "Dumpster", Config.Trash.DumpsterSearchSeconds)
+	local prompt = addPrompt(body, "Search", "Dumpster", Config.Trash.DumpsterSearchSeconds)
 	return {
 		model = dumpster,
 		body = body,
@@ -1432,6 +1462,17 @@ local function createSharedDump()
 		1,
 		false
 	)
+	local ladderPlacement = createPart(
+		"LadderPlacement",
+		dump,
+		Vector3.new(12, 0.3, 12),
+		CFrame.new(dumpCenter + Vector3.new(-dumpWidth / 2 + 10, 0.55, 0)),
+		Color3.fromRGB(226, 168, 62),
+		Enum.Material.Neon,
+		0.35,
+		false
+	)
+	local ladderPrompt = addPrompt(ladderPlacement, "Place Ladder", "Aircraft Yard Access", 0.5)
 
 	local state = {
 		cans = {},
@@ -1478,6 +1519,15 @@ local function createSharedDump()
 			end,
 			function(searchingPlayer)
 				return PlayerData.getLevel(searchingPlayer) >= Config.Trash.DumpsterMinimumLevel
+			end,
+			function(searchingPlayer)
+				notify(
+					searchingPlayer,
+					string.format(
+						"Level %d required to search dumpsters.",
+						Config.Trash.DumpsterMinimumLevel
+					)
+				)
 			end
 		)
 	end
@@ -1485,7 +1535,467 @@ local function createSharedDump()
 	return {
 		model = dump,
 		arrival = arrival,
+		ladderPrompt = ladderPrompt,
 	}
+end
+
+local PLANE_DIRT_CANDIDATES = {
+	{ Size = Vector3.new(4, 0.22, 3), Offset = CFrame.new(-7, 1.7, -1) },
+	{ Size = Vector3.new(4, 0.22, 3), Offset = CFrame.new(7, 1.7, -1) },
+	{ Size = Vector3.new(3, 0.22, 3), Offset = CFrame.new(0, 2.7, -7) },
+	{ Size = Vector3.new(3, 0.22, 3), Offset = CFrame.new(0, 2.7, 1) },
+	{ Size = Vector3.new(3, 0.22, 2.5), Offset = CFrame.new(-13, 1.1, 1) },
+	{ Size = Vector3.new(3, 0.22, 2.5), Offset = CFrame.new(13, 1.1, 1) },
+	{
+		Size = Vector3.new(3, 0.22, 2.5),
+		Offset = CFrame.new(-1.85, 0.2, 7) * CFrame.Angles(0, 0, math.rad(90)),
+	},
+	{
+		Size = Vector3.new(3, 0.22, 2.5),
+		Offset = CFrame.new(1.85, 0.2, 7) * CFrame.Angles(0, 0, math.rad(90)),
+	},
+}
+
+local HELICOPTER_DIRT_CANDIDATES = {
+	{ Size = Vector3.new(3, 0.22, 2.5), Offset = CFrame.new(-2.5, 2.6, -2) },
+	{ Size = Vector3.new(3, 0.22, 2.5), Offset = CFrame.new(2.5, 2.6, -2) },
+	{ Size = Vector3.new(3, 0.22, 2.5), Offset = CFrame.new(-2.5, 2.4, 3) },
+	{ Size = Vector3.new(3, 0.22, 2.5), Offset = CFrame.new(2.5, 2.4, 3) },
+	{
+		Size = Vector3.new(3, 0.22, 2.5),
+		Offset = CFrame.new(-4.15, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)),
+	},
+	{
+		Size = Vector3.new(3, 0.22, 2.5),
+		Offset = CFrame.new(4.15, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)),
+	},
+	{ Size = Vector3.new(3, 0.22, 3), Offset = CFrame.new(0, 1.1, 9) },
+	{ Size = Vector3.new(2.5, 0.22, 2.5), Offset = CFrame.new(0, 4.2, 0) },
+}
+
+local function aircraftBayCenter(slotIndex: number): Vector3
+	local zeroIndex = math.max(0, slotIndex - 1)
+	local column = zeroIndex % 2
+	local row = math.floor(zeroIndex / 2)
+	return LEVEL_TWO_DUMP_CENTER
+		+ Vector3.new(if column == 0 then -95 else 95, 0, -225 + (row % 4) * 150)
+end
+
+local function createPlane(player: Player, baseCFrame: CFrame): Model
+	local plane = Instance.new("Model")
+	plane.Name = string.format("%s_OldPlane", player.Name)
+	plane:SetAttribute("OwnerUserId", player.UserId)
+	plane:SetAttribute("VehicleDisplayName", "Old Plane")
+	plane:SetAttribute("AircraftType", "plane")
+	plane:SetAttribute("RequiredCleaningTier", 2)
+	plane:SetAttribute("CompletionCoins", 0)
+	plane:SetAttribute("CompletionExperience", 0)
+	plane.Parent = carsFolder
+
+	local body = createPart(
+		"Fuselage",
+		plane,
+		Vector3.new(4, 4, 20),
+		baseCFrame,
+		Color3.fromRGB(120, 126, 118),
+		Enum.Material.CorrodedMetal
+	)
+	plane.PrimaryPart = body
+	createPart(
+		"Wing",
+		plane,
+		Vector3.new(32, 0.8, 7),
+		baseCFrame * CFrame.new(0, 0, 1),
+		Color3.fromRGB(103, 111, 105),
+		Enum.Material.CorrodedMetal
+	)
+	createPart(
+		"TailWing",
+		plane,
+		Vector3.new(13, 0.65, 4),
+		baseCFrame * CFrame.new(0, 1.1, 8),
+		Color3.fromRGB(96, 103, 98),
+		Enum.Material.CorrodedMetal
+	)
+	createPart(
+		"TailFin",
+		plane,
+		Vector3.new(0.8, 5, 4),
+		baseCFrame * CFrame.new(0, 2.7, 8),
+		Color3.fromRGB(88, 96, 91),
+		Enum.Material.CorrodedMetal
+	)
+	createPart(
+		"Cockpit",
+		plane,
+		Vector3.new(3.5, 2.2, 5),
+		baseCFrame * CFrame.new(0, 2.2, -4),
+		Color3.fromRGB(55, 77, 82),
+		Enum.Material.Glass,
+		0.18,
+		false
+	)
+	addDirtPatches(player, plane, baseCFrame, PLANE_DIRT_CANDIDATES, #PLANE_DIRT_CANDIDATES)
+	return plane
+end
+
+local function createHelicopter(player: Player, baseCFrame: CFrame): Model
+	local helicopter = Instance.new("Model")
+	helicopter.Name = string.format("%s_OldHelicopter", player.Name)
+	helicopter:SetAttribute("OwnerUserId", player.UserId)
+	helicopter:SetAttribute("VehicleDisplayName", "Old Helicopter")
+	helicopter:SetAttribute("AircraftType", "helicopter")
+	helicopter:SetAttribute("RequiredCleaningTier", 2)
+	helicopter:SetAttribute("CompletionCoins", 0)
+	helicopter:SetAttribute("CompletionExperience", 0)
+	helicopter.Parent = carsFolder
+
+	local body = createPart(
+		"Cabin",
+		helicopter,
+		Vector3.new(8, 5, 10),
+		baseCFrame,
+		Color3.fromRGB(101, 112, 91),
+		Enum.Material.CorrodedMetal
+	)
+	helicopter.PrimaryPart = body
+	createWedge(
+		"Nose",
+		helicopter,
+		Vector3.new(8, 5, 4),
+		baseCFrame * CFrame.new(0, 0, -7),
+		Color3.fromRGB(101, 112, 91),
+		Enum.Material.CorrodedMetal
+	)
+	createPart(
+		"TailBoom",
+		helicopter,
+		Vector3.new(2.2, 2.2, 15),
+		baseCFrame * CFrame.new(0, 0.5, 11),
+		Color3.fromRGB(88, 98, 81),
+		Enum.Material.CorrodedMetal
+	)
+	createPart(
+		"RotorMast",
+		helicopter,
+		Vector3.new(0.8, 3, 0.8),
+		baseCFrame * CFrame.new(0, 4, 0),
+		Color3.fromRGB(58, 61, 58),
+		Enum.Material.Metal
+	)
+	createPart(
+		"MainRotor",
+		helicopter,
+		Vector3.new(30, 0.35, 1),
+		baseCFrame * CFrame.new(0, 5.5, 0),
+		Color3.fromRGB(45, 48, 47),
+		Enum.Material.Metal
+	)
+	createPart(
+		"CrossRotor",
+		helicopter,
+		Vector3.new(1, 0.35, 30),
+		baseCFrame * CFrame.new(0, 5.5, 0),
+		Color3.fromRGB(45, 48, 47),
+		Enum.Material.Metal
+	)
+	for _, xOffset in ipairs({ -3, 3 }) do
+		createPart(
+			"LandingSkid",
+			helicopter,
+			Vector3.new(0.55, 0.55, 13),
+			baseCFrame * CFrame.new(xOffset, -3.1, 1),
+			Color3.fromRGB(49, 52, 50),
+			Enum.Material.Metal
+		)
+	end
+	addDirtPatches(
+		player,
+		helicopter,
+		baseCFrame,
+		HELICOPTER_DIRT_CANDIDATES,
+		#HELICOPTER_DIRT_CANDIDATES
+	)
+	return helicopter
+end
+
+redirtyAircraft = function(player: Player, aircraft: Model)
+	if countRemainingDirt(aircraft) > 0 or not aircraft.PrimaryPart then
+		return
+	end
+	local aircraftType = aircraft:GetAttribute("AircraftType")
+	local candidates = if aircraftType == "plane"
+		then PLANE_DIRT_CANDIDATES
+		else HELICOPTER_DIRT_CANDIDATES
+	addDirtPatches(player, aircraft, aircraft.PrimaryPart.CFrame, candidates, #candidates)
+end
+
+local function createPlayerAircraft(player: Player, slotIndex: number)
+	local oldAircraft = aircraftByPlayer[player]
+	if oldAircraft then
+		for _, aircraft in oldAircraft do
+			aircraft:Destroy()
+		end
+	end
+	local center = aircraftBayCenter(slotIndex)
+	local plane = createPlane(player, CFrame.new(center + Vector3.new(0, 3, -40)))
+	local helicopter = createHelicopter(player, CFrame.new(center + Vector3.new(0, 4, 42)))
+	aircraftByPlayer[player] = { plane, helicopter }
+end
+
+local function refillFixedSalvage(state, isDumpster: boolean)
+	if state.refilling then
+		return
+	end
+	state.refilling = true
+	for _, container in state.containers do
+		if isDumpster then
+			setDumpsterSearched(container, false)
+			setDumpsterRefilling(container, true)
+		else
+			setTrashcanSearched(container, false)
+			setTrashcanRefilling(container, true)
+		end
+	end
+	task.delay(Config.Trash.RefillSeconds, function()
+		if state ~= levelTwoTrashState and state ~= levelTwoDumpsterState then
+			return
+		end
+		state.searched = {}
+		state.searchCount = 0
+		state.refilling = false
+		for _, container in state.containers do
+			if isDumpster then
+				setDumpsterRefilling(container, false)
+			else
+				setTrashcanRefilling(container, false)
+			end
+		end
+	end)
+end
+
+local function searchLevelTwoContainer(player: Player, state, index: number, isDumpster: boolean)
+	if state.refilling or state.searched[index] then
+		notify(player, "That container has already been looted. Find another one.")
+		return
+	end
+	state.searched[index] = true
+	state.searchCount += 1
+	if isDumpster then
+		setDumpsterSearched(state.containers[index], true)
+	else
+		setTrashcanSearched(state.containers[index], true)
+	end
+
+	local outcome = LootRules.rollTrashCan(true, math.random(1, 100))
+	local baseReward = outcome.coins
+		* (if isDumpster then Config.Trash.DumpsterRewardMultiplier else 1)
+	local reward = LootRules.scaleAndRoundReward(baseReward, Config.Trash.LevelTwoRewardMultiplier)
+	PlayerData.addCoins(player, reward)
+	notify(player, string.format("Aircraft-yard salvage! +%d coins", reward))
+	if state.searchCount >= state.total then
+		refillFixedSalvage(state, isDumpster)
+	end
+end
+
+local function createLevelTwoDump()
+	local dump = Instance.new("Model")
+	dump.Name = "AircraftSalvageYard"
+	dump.Parent = greyboxReference.root
+	local center = LEVEL_TWO_DUMP_CENTER
+	local width = 400
+	local depth = 620
+	local fenceHeight = 18
+	createPart(
+		"AircraftYardFloor",
+		dump,
+		Vector3.new(width, 0.4, depth),
+		CFrame.new(center + Vector3.new(0, 0.25, 0)),
+		Color3.fromRGB(67, 62, 53),
+		Enum.Material.Ground
+	)
+
+	local function fence(name: string, size: Vector3, position: Vector3)
+		createPart(
+			name,
+			dump,
+			size,
+			CFrame.new(position),
+			Color3.fromRGB(60, 66, 65),
+			Enum.Material.Metal,
+			0.42,
+			true
+		)
+	end
+	fence(
+		"NorthTallFence",
+		Vector3.new(width, fenceHeight, 0.8),
+		center + Vector3.new(0, fenceHeight / 2, -depth / 2)
+	)
+	fence(
+		"SouthTallFence",
+		Vector3.new(width, fenceHeight, 0.8),
+		center + Vector3.new(0, fenceHeight / 2, depth / 2)
+	)
+	fence(
+		"WestTallFence",
+		Vector3.new(0.8, fenceHeight, depth),
+		center + Vector3.new(-width / 2, fenceHeight / 2, 0)
+	)
+	fence(
+		"EastTallFence",
+		Vector3.new(0.8, fenceHeight, depth),
+		center + Vector3.new(width / 2, fenceHeight / 2, 0)
+	)
+
+	local sign = createPart(
+		"AircraftYardSign",
+		dump,
+		Vector3.new(34, 8, 1),
+		CFrame.new(center + Vector3.new(width / 2 - 4, 13, -42)),
+		Color3.fromRGB(105, 67, 37),
+		Enum.Material.Wood
+	)
+	addBillboard(sign, "LEVEL 2 AIRCRAFT YARD", Color3.fromRGB(255, 209, 112))
+
+	for pileIndex = 1, 26 do
+		local side = if pileIndex % 2 == 0 then -1 else 1
+		local zOffset = -285 + ((pileIndex * 43) % 570)
+		local xOffset = side * (150 + (pileIndex % 3) * 12)
+		for scrapIndex = 1, 3 do
+			local size = Vector3.new(
+				4 + scrapIndex * 2,
+				2 + (pileIndex + scrapIndex) % 5,
+				5 + (pileIndex * scrapIndex) % 6
+			)
+			createPart(
+				string.format("AircraftScrap_%d_%d", pileIndex, scrapIndex),
+				dump,
+				size,
+				CFrame.new(
+					center
+						+ Vector3.new(
+							xOffset + scrapIndex * 2,
+							size.Y / 2,
+							zOffset + scrapIndex * 3
+						)
+				) * CFrame.Angles(math.rad(scrapIndex * 9), math.rad(pileIndex * 17), 0),
+				if scrapIndex == 1 then Color3.fromRGB(93, 75, 52) else Color3.fromRGB(74, 82, 79),
+				Enum.Material.CorrodedMetal
+			)
+		end
+	end
+
+	levelTwoTrashState = {
+		containers = {},
+		searched = {},
+		searchCount = 0,
+		refilling = false,
+		total = Config.Trash.LevelTwoCanCount,
+	}
+	for index = 1, Config.Trash.LevelTwoCanCount do
+		local side = if index <= 6 then -1 else 1
+		local row = (index - 1) % 6
+		local position = center + Vector3.new(side * 170, 0.5, -245 + row * 98)
+		local can = createTrashcan(dump, position, 100 + index)
+		table.insert(levelTwoTrashState.containers, can)
+		SecurePrompt.bind(can.prompt, Config.Trash.SearchSeconds, function(searchingPlayer)
+			searchLevelTwoContainer(searchingPlayer, levelTwoTrashState, index, false)
+		end)
+	end
+
+	levelTwoDumpsterState = {
+		containers = {},
+		searched = {},
+		searchCount = 0,
+		refilling = false,
+		total = Config.Trash.LevelTwoDumpsterCount,
+	}
+	for index, offset in ipairs({
+		Vector3.new(-150, 0.5, -285),
+		Vector3.new(150, 0.5, -285),
+		Vector3.new(-150, 0.5, 285),
+		Vector3.new(150, 0.5, 285),
+	}) do
+		local dumpster = createDumpster(dump, center + offset, 100 + index)
+		table.insert(levelTwoDumpsterState.containers, dumpster)
+		SecurePrompt.bind(
+			dumpster.prompt,
+			Config.Trash.DumpsterSearchSeconds,
+			function(searchingPlayer)
+				searchLevelTwoContainer(searchingPlayer, levelTwoDumpsterState, index, true)
+			end,
+			function(searchingPlayer)
+				return PlayerData.getLevel(searchingPlayer)
+					>= Config.Trash.LevelTwoDumpsterMinimumLevel
+			end,
+			function(searchingPlayer)
+				notify(
+					searchingPlayer,
+					string.format(
+						"Level %d required to search aircraft-yard dumpsters.",
+						Config.Trash.LevelTwoDumpsterMinimumLevel
+					)
+				)
+			end
+		)
+	end
+
+	return { model = dump }
+end
+
+local function createPlayerLadder(player: Player, slotIndex: number)
+	if laddersByPlayer[player] then
+		laddersByPlayer[player]:Destroy()
+	end
+	local ladder = Instance.new("Model")
+	ladder.Name = string.format("SalvageLadder_%d", player.UserId)
+	ladder:SetAttribute("OwnerUserId", player.UserId)
+	ladder.Parent = levelTwoDumpReference.model
+	local zOffset = -72 + ((slotIndex - 1) % 9) * 18
+	local base = Vector3.new(-492.5, 0, zOffset)
+	for sideIndex, zRailOffset in ipairs({ -2.2, 2.2 }) do
+		createPart(
+			"Rail_" .. sideIndex,
+			ladder,
+			Vector3.new(1, 20, 0.8),
+			CFrame.new(base + Vector3.new(0, 10, zRailOffset)) * CFrame.Angles(0, 0, math.rad(-10)),
+			Color3.fromRGB(194, 132, 49),
+			Enum.Material.Wood,
+			0,
+			false
+		)
+	end
+	local climbPart
+	for rungIndex = 1, 9 do
+		local rung = createPart(
+			"Rung_" .. rungIndex,
+			ladder,
+			Vector3.new(0.8, 0.7, 5.2),
+			CFrame.new(base + Vector3.new((rungIndex - 1) * -0.38, 1.7 + rungIndex * 1.9, 0)),
+			Color3.fromRGB(218, 158, 66),
+			Enum.Material.Wood,
+			0,
+			false
+		)
+		climbPart = climbPart or rung
+	end
+	local prompt = addPrompt(climbPart, "Climb", player.DisplayName .. "'s Ladder", 0.2)
+	SecurePrompt.bind(prompt, 0.2, function(climbingPlayer)
+		local root = getRootPart(climbingPlayer)
+		if root then
+			local destinationX = if root.Position.X > -492.5 then -516 else -470
+			climbingPlayer.Character:PivotTo(CFrame.new(destinationX, 4, zOffset))
+		end
+	end, function(climbingPlayer)
+		return climbingPlayer == player
+	end, function(climbingPlayer)
+		notify(
+			climbingPlayer,
+			"That ladder belongs to another player. Buy your own from Milo at Level 10."
+		)
+	end)
+	laddersByPlayer[player] = ladder
 end
 
 local function createSafeZone(player: Player, slotIndex: number): Model
@@ -1621,6 +2131,10 @@ local function setupPlayer(player: Player)
 	local zone = createSafeZone(player, slotIndex)
 	playerZones[player] = zone
 	spawnDirtyCar(player)
+	createPlayerAircraft(player, slotIndex)
+	if PlayerData.hasPlacedLadder(player) then
+		createPlayerLadder(player, slotIndex)
+	end
 	player.CharacterAdded:Connect(function(character)
 		task.wait(0.15)
 		moveCharacterToZone(player, character)
@@ -1640,6 +2154,16 @@ local function cleanupPlayer(player: Player)
 	if zone then
 		zone:Destroy()
 	end
+	local aircraft = aircraftByPlayer[player]
+	if aircraft then
+		for _, model in aircraft do
+			model:Destroy()
+		end
+	end
+	local ladder = laddersByPlayer[player]
+	if ladder then
+		ladder:Destroy()
+	end
 	local slotIndex = playerZoneSlots[player]
 	if slotIndex then
 		zoneOwners[slotIndex] = nil
@@ -1650,6 +2174,8 @@ local function cleanupPlayer(player: Player)
 	vehicleSchedules[player] = nil
 	lastVehicleColorIndexes[player] = nil
 	teleportCooldowns[player] = nil
+	aircraftByPlayer[player] = nil
+	laddersByPlayer[player] = nil
 end
 
 function PrototypeGameplay.start(greybox)
@@ -1663,6 +2189,32 @@ function PrototypeGameplay.start(greybox)
 	newCarsFolder.Parent = Workspace
 	carsFolder = newCarsFolder
 	sharedDumpReference = createSharedDump()
+	levelTwoDumpReference = createLevelTwoDump()
+	SecurePrompt.bind(sharedDumpReference.ladderPrompt, 0.5, function(player)
+		local equippedItem = PlayerData.getEquippedToolItem(player)
+		if not equippedItem or equippedItem.toolId ~= "item_salvage_ladder" then
+			notify(player, "Equip the Salvage Ladder from your inventory before placing it here.")
+			return
+		end
+		local success, message = PlayerData.placeLadder(player)
+		notify(player, message)
+		if success then
+			local slotIndex = playerZoneSlots[player]
+			if slotIndex then
+				createPlayerLadder(player, slotIndex)
+			end
+		end
+	end, function(player)
+		return PlayerData.getLevel(player) >= Config.LevelTwoDump.AccessLevel
+	end, function(player)
+		notify(
+			player,
+			string.format(
+				"Level %d required before you can place an aircraft-yard ladder.",
+				Config.LevelTwoDump.AccessLevel
+			)
+		)
+	end)
 
 	local shopPrompt = addPrompt(greybox.shopClerk, "Talk", "Milo - Shop Clerk", 0.2)
 	shopPrompt.Triggered:Connect(function(player)
@@ -1715,6 +2267,14 @@ function PrototypeGameplay.start(greybox)
 			local definition = Catalog.getTool(toolId)
 			notify(player, string.format("%s equipped automatically.", definition.DisplayName))
 		end
+	end)
+	Remotes.connect("SellInventoryItem", function(player, itemId)
+		if type(itemId) ~= "string" or not isNear(player, greybox.shopClerk, 22) then
+			notify(player, "Milo only buys tools while you are at his counter.")
+			return
+		end
+		local _, message = PlayerData.sellInventoryItem(player, itemId)
+		notify(player, message)
 	end)
 	Remotes.connect("RequestTeleport", function(player, locationId)
 		if type(locationId) ~= "string" then

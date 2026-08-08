@@ -15,8 +15,11 @@ This performs:
 3. Luau static type analysis against current Roblox API definitions and the Rojo sourcemap.
 4. Production and test-place Rojo builds.
 5. Jest execution inside the real Roblox Studio engine.
+6. Production-world construction smoke testing inside Roblox Studio.
 
 The engine wrapper requires the explicit `CAR_WASH_RUSH_TESTS_PASSED` marker because the Studio CLI can return process code 0 after a script error.
+
+The world smoke runner starts the real greybox and gameplay systems, then verifies both salvage districts, the tall aircraft-yard fence, ladder placement point, fixed container counts, and ladder catalog gates. It requires the `CAR_WASH_RUSH_WORLD_SMOKE_PASSED` marker.
 
 ## Fast checks
 
@@ -34,6 +37,7 @@ Current high-value coverage includes:
 
 - XP rounding and multi-level progression.
 - Loot probability boundaries and dumpster multipliers.
+- Cleaning-tool tier compatibility and level-2 reward rounding.
 - Durability, resale, and Quality Sponge charge.
 - Vehicle weights, RV cadence, and color repetition.
 - Profile migration and hotbar repair.
@@ -58,3 +62,5 @@ Before a release, test with at least two real accounts in the private test exper
 - Inventory, durability, per-sponge charge, coins, XP, and RV cadence survive a reconnect.
 - Mobile touch controls and small-screen inventory rows remain usable.
 - Streaming never strands a player after Home, Shop, or Dump travel.
+- Milo is the only place tools can be sold, and sale confirmation uses the current durability value.
+- Level-10 ladder access is private, while aircraft-yard containers remain shared.

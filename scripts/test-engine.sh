@@ -12,4 +12,4 @@ rojo build test.project.json --output build/car-wash-rush-tests.rbxlx
 	--outputFile "$(pwd)/test-results/jest.log" \
 	--quitAfterExecution
 cat test-results/jest.log
-grep -q "CAR_WASH_RUSH_TESTS_PASSED" test-results/jest.log
+grep -Eq '^CAR_WASH_RUSH_TESTS_PASSED: [0-9]+ tests$' test-results/jest.log

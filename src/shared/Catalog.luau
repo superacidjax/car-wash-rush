@@ -1,13 +1,18 @@
+local Config = require(script.Parent.Config)
+
 local Catalog = {}
 
 Catalog.ToolOrder = {
 	"tool_rag",
 	"tool_sponge",
 	"tool_quality_sponge",
+	"item_salvage_ladder",
 }
 
 Catalog.Tools = {
 	tool_old_rag = {
+		ItemKind = "cleaning_tool",
+		CleaningTier = 1,
 		DisplayName = "Old Rag",
 		Price = nil,
 		BaseResaleValue = 3,
@@ -19,6 +24,8 @@ Catalog.Tools = {
 		Material = Enum.Material.Fabric,
 	},
 	tool_rag = {
+		ItemKind = "cleaning_tool",
+		CleaningTier = 1,
 		DisplayName = "Rag",
 		ShopDescription = "A dependable basic cloth for getting started.",
 		Price = 25,
@@ -31,6 +38,8 @@ Catalog.Tools = {
 		Material = Enum.Material.Fabric,
 	},
 	tool_sponge = {
+		ItemKind = "cleaning_tool",
+		CleaningTier = 1,
 		DisplayName = "Sponge",
 		ShopDescription = "Earns 1 bonus coin for every dirt spot it cleans.",
 		Price = 125,
@@ -43,6 +52,8 @@ Catalog.Tools = {
 		Material = Enum.Material.SmoothPlastic,
 	},
 	tool_quality_sponge = {
+		ItemKind = "cleaning_tool",
+		CleaningTier = 1,
 		DisplayName = "Quality Sponge",
 		ShopDescription = "Its shine seems to build toward a charged reward...",
 		Price = 500,
@@ -53,6 +64,19 @@ Catalog.Tools = {
 		HandleColor = Color3.fromRGB(45, 205, 245),
 		HandleSize = Vector3.new(1.7, 0.8, 1.1),
 		Material = Enum.Material.SmoothPlastic,
+	},
+	item_salvage_ladder = {
+		ItemKind = "placeable",
+		DisplayName = "Salvage Ladder",
+		ShopDescription = "Place it at the far wall of the salvage dump to reach the aircraft yard.",
+		Price = Config.LevelTwoDump.LadderPrice,
+		MinimumLevel = Config.LevelTwoDump.AccessLevel,
+		CanSell = false,
+		BaseResaleValue = 0,
+		MaxDurability = 1,
+		HandleColor = Color3.fromRGB(205, 145, 57),
+		HandleSize = Vector3.new(1.1, 6, 0.7),
+		Material = Enum.Material.Wood,
 	},
 }
 
@@ -73,6 +97,8 @@ function Catalog.getShopTools()
 				ClicksMin = definition.ClicksMin,
 				ClicksMax = definition.ClicksMax,
 				Description = definition.ShopDescription,
+				ItemKind = definition.ItemKind,
+				MinimumLevel = definition.MinimumLevel,
 			})
 		end
 	end

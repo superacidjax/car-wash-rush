@@ -4,7 +4,7 @@ local Catalog = require(script.Parent.Parent.Catalog)
 
 local ProfileSchema = {}
 
-ProfileSchema.VERSION = 4
+ProfileSchema.VERSION = 5
 
 export type InventoryItem = {
 	id: string,
@@ -19,6 +19,7 @@ export type Profile = {
 	level: number,
 	experience: number,
 	ragFound: boolean,
+	ladderPlaced: boolean,
 	equippedItemId: string?,
 	hotbarItemIds: { string },
 	inventory: { InventoryItem },
@@ -67,6 +68,7 @@ function ProfileSchema.default(): Profile
 		level = 0,
 		experience = 0,
 		ragFound = false,
+		ladderPlaced = false,
 		equippedItemId = nil,
 		hotbarItemIds = {},
 		inventory = {},
@@ -87,6 +89,7 @@ function ProfileSchema.normalize(raw: any, idFactory: (() -> string)?): Profile
 	profile.level = nonNegativeInteger(raw.level, 0)
 	profile.experience = nonNegativeInteger(raw.experience, 0)
 	profile.ragFound = raw.ragFound == true
+	profile.ladderPlaced = raw.ladderPlaced == true
 
 	local seenIds: { [string]: boolean } = {}
 	if type(raw.inventory) == "table" then

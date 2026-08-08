@@ -5,7 +5,6 @@ InventoryController.__index = InventoryController
 
 type Remotes = {
 	equip: RemoteEvent,
-	sell: RemoteEvent,
 }
 
 export type InventoryController = any
@@ -124,7 +123,7 @@ function InventoryController:_render()
 
 		local details = Instance.new("TextLabel")
 		details.Position = UDim2.fromOffset(12, 8)
-		details.Size = UDim2.new(1, -210, 1, -16)
+		details.Size = UDim2.new(1, -112, 1, -16)
 		details.BackgroundTransparency = 1
 		details.Text = string.format(
 			"%s%s\nDurability %d/%d  |  Resale %d",
@@ -145,20 +144,11 @@ function InventoryController:_render()
 
 		local equip = textButton(row, "EQUIP", Color3.fromRGB(43, 116, 153))
 		equip.AnchorPoint = Vector2.new(1, 0.5)
-		equip.Position = UDim2.new(1, -94, 0.5, 0)
+		equip.Position = UDim2.new(1, -10, 0.5, 0)
 		equip.Size = UDim2.fromOffset(82, 40)
 		equip.ZIndex = 43
 		equip.MouseButton1Click:Connect(function()
 			self.remotes.equip:FireServer(item.id)
-		end)
-
-		local sell = textButton(row, "SELL", Color3.fromRGB(139, 74, 54))
-		sell.AnchorPoint = Vector2.new(1, 0.5)
-		sell.Position = UDim2.new(1, -8, 0.5, 0)
-		sell.Size = UDim2.fromOffset(78, 40)
-		sell.ZIndex = 43
-		sell.MouseButton1Click:Connect(function()
-			self.remotes.sell:FireServer(item.id)
 		end)
 	end
 end

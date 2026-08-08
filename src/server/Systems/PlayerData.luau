@@ -28,19 +28,7 @@ type RuntimeState = {
 	saveScheduled: boolean,
 }
 
-local dataStore = DataStoreService:GetDataStore(Config.DataStoreName)
-local sessionId = if game.JobId ~= "" then game.JobId else HttpService:GenerateGUID(false)
-local repository = ProfileStore.new({
-	store = dataStore,
-	sessionId = sessionId,
-	normalize = function(raw)
-		return ProfileSchema.normalize(raw, function()
-			return HttpService:GenerateGUID(false)
-		end)
-	end,
-	leaseSeconds = Config.Persistence.SessionLeaseSeconds,
-	retryCount = Config.Persistence.RetryCount,
-})
+local repository: any = nil
 
 local states: { [Player]: RuntimeState } = {}
 local toolInstances: { [Player]: { [string]: Tool } } = {}
@@ -97,6 +85,8 @@ local function makeSnapshot(profile: any): any
 				),
 				qualityCharge = item.qualityCharge or 0,
 				inHotbar = hotbarLookup[item.id] == true,
+				itemKind = definition.ItemKind,
+				canSell = definition.CanSell ~= false,
 			})
 		end
 	end
@@ -108,6 +98,7 @@ local function makeSnapshot(profile: any): any
 		experienceRequired = getExperienceRequired(profile.level),
 		qualitySpongeCharge = currentQualityCharge(profile),
 		ragFound = profile.ragFound,
+		ladderPlaced = profile.ladderPlaced,
 		equippedItemId = profile.equippedItemId,
 		hotbarItemIds = table.clone(profile.hotbarItemIds),
 		inventory = inventory,
@@ -261,6 +252,8 @@ local function createToolInstance(player: Player, item: any): Tool?
 	tool:SetAttribute("CarWashRushTool", true)
 	tool:SetAttribute("InventoryItemId", item.id)
 	tool:SetAttribute("ToolId", item.toolId)
+	tool:SetAttribute("ItemKind", definition.ItemKind)
+	tool:SetAttribute("CleaningTier", definition.CleaningTier or 0)
 	tool:SetAttribute("MaxDurability", definition.MaxDurability)
 
 	local handle = Instance.new("Part")
@@ -499,6 +492,22 @@ local function newItem(toolId: string): any?
 end
 
 function PlayerData.start()
+	if repository then
+		return
+	end
+	local dataStore = DataStoreService:GetDataStore(Config.DataStoreName)
+	local sessionId = if game.JobId ~= "" then game.JobId else HttpService:GenerateGUID(false)
+	repository = ProfileStore.new({
+		store = dataStore,
+		sessionId = sessionId,
+		normalize = function(raw)
+			return ProfileSchema.normalize(raw, function()
+				return HttpService:GenerateGUID(false)
+			end)
+		end,
+		leaseSeconds = Config.Persistence.SessionLeaseSeconds,
+		retryCount = Config.Persistence.RetryCount,
+	})
 	Remotes.connect("RequestInventory", function(player)
 		updateReplicatedValues(player)
 	end)
@@ -508,13 +517,6 @@ function PlayerData.start()
 			Remotes.get("Notify"):FireClient(player, message)
 		end
 	end)
-	Remotes.connect("SellInventoryItem", function(player, itemId)
-		if type(itemId) == "string" then
-			local _, message = PlayerData.sellInventoryItem(player, itemId)
-			Remotes.get("Notify"):FireClient(player, message)
-		end
-	end)
-
 	Players.PlayerAdded:Connect(function(player)
 		task.spawn(loadPlayer, player)
 	end)
@@ -663,6 +665,16 @@ function PlayerData.purchaseTool(player: Player, toolId: string): (boolean, stri
 	if not state or not definition or not definition.Price or not item then
 		return false, "That item is not available."
 	end
+	if definition.MinimumLevel and state.profile.level < definition.MinimumLevel then
+		return false, string.format("Reach Level %d to buy that item.", definition.MinimumLevel)
+	end
+	if toolId == "item_salvage_ladder" then
+		for _, ownedItem in state.profile.inventory do
+			if ownedItem.toolId == toolId then
+				return false, "You already own a Salvage Ladder."
+			end
+		end
+	end
 	if state.profile.coins < definition.Price then
 		return false,
 			string.format("You need %d more coins.", definition.Price - state.profile.coins)
@@ -707,6 +719,9 @@ function PlayerData.sellInventoryItem(player: Player, itemId: string): (boolean,
 	if not state or not item or not definition then
 		return false, "That tool is not available."
 	end
+	if definition.CanSell == false then
+		return false, "Milo cannot buy that item back."
+	end
 	local value = InventoryRules.resaleValue(
 		definition.BaseResaleValue,
 		item.durability,
@@ -727,6 +742,44 @@ function PlayerData.sellInventoryItem(player: Player, itemId: string): (boolean,
 	rebuildBackpack(player)
 	markChanged(player)
 	return true, string.format("Sold %s for %d coins.", definition.DisplayName, value)
+end
+
+function PlayerData.hasItem(player: Player, toolId: string): boolean
+	local state = states[player]
+	if not state then
+		return false
+	end
+	for _, item in state.profile.inventory do
+		if item.toolId == toolId then
+			return true
+		end
+	end
+	return false
+end
+
+function PlayerData.hasPlacedLadder(player: Player): boolean
+	local state = states[player]
+	return state ~= nil and state.profile.ladderPlaced == true
+end
+
+function PlayerData.placeLadder(player: Player): (boolean, string)
+	local state = states[player]
+	if not state or state.profile.level < Config.LevelTwoDump.AccessLevel then
+		return false,
+			string.format(
+				"Reach Level %d before placing this ladder.",
+				Config.LevelTwoDump.AccessLevel
+			)
+	end
+	if not PlayerData.hasItem(player, "item_salvage_ladder") then
+		return false, "Equip the Salvage Ladder you bought from Milo first."
+	end
+	if state.profile.ladderPlaced then
+		return false, "Your Salvage Ladder is already in place."
+	end
+	state.profile.ladderPlaced = true
+	markChanged(player)
+	return true, "Salvage Ladder placed. The aircraft yard is now open to you."
 end
 
 function PlayerData.getEquippedToolItem(player: Player): (any?, any?)

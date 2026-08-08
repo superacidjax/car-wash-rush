@@ -45,6 +45,10 @@ Config.Trash = {
 	DumpsterSearchSeconds = 10,
 	DumpsterMinimumLevel = 5,
 	DumpsterRewardMultiplier = 2,
+	LevelTwoCanCount = 12,
+	LevelTwoDumpsterCount = 4,
+	LevelTwoDumpsterMinimumLevel = 10,
+	LevelTwoRewardMultiplier = 1.35,
 	RefillSeconds = 3,
 }
 
@@ -55,6 +59,12 @@ Config.Cleaning = {
 	SpongeSpotCoinReward = 1,
 	QualitySpongeChargeRequired = 10,
 	QualitySpongeAbilityReward = 40,
+}
+
+Config.LevelTwoDump = {
+	AccessLevel = 10,
+	LadderPrice = 1000,
+	AircraftRedirtySeconds = 60,
 }
 
 Config.RemoteLimits = {

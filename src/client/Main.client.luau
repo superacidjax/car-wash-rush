@@ -55,7 +55,6 @@ screenGui.Parent = playerGui
 local highlightController = HighlightController.new(player, Config.World.PrototypeCarsFolderName)
 local inventoryController = InventoryController.new(screenGui, {
 	equip = equipInventoryItem,
-	sell = sellInventoryItem,
 })
 
 local function addCorner(parent: GuiObject, radius: number?)
@@ -599,15 +598,25 @@ local function createChoiceButton(text: string, position: UDim2, color: Color3):
 	button.Text = text
 	button.TextColor3 = Color3.fromRGB(255, 255, 255)
 	button.TextSize = 18
+	button.TextScaled = true
 	button.Font = Enum.Font.GothamBold
 	button.ZIndex = 16
 	button.Parent = dialogue
 	addCorner(button, 4)
+	local textConstraint = Instance.new("UITextSizeConstraint")
+	textConstraint.MinTextSize = 12
+	textConstraint.MaxTextSize = 18
+	textConstraint.Parent = button
 	return button
 end
 
-local buyChoice = createChoiceButton("I want to buy", UDim2.new(0.66, 0, 0, 28), COLORS.Green)
-local leaveChoice = createChoiceButton("Nevermind", UDim2.new(0.66, 0, 0, 102), COLORS.PanelLight)
+local buyChoice = createChoiceButton("I want to buy", UDim2.new(0.66, 0, 0, 18), COLORS.Green)
+buyChoice.Size = UDim2.new(0.31, 0, 0, 46)
+local sellChoice =
+	createChoiceButton("I want to sell", UDim2.new(0.66, 0, 0, 71), Color3.fromRGB(43, 116, 153))
+sellChoice.Size = UDim2.new(0.31, 0, 0, 46)
+local leaveChoice = createChoiceButton("Nevermind", UDim2.new(0.66, 0, 0, 124), COLORS.PanelLight)
+leaveChoice.Size = UDim2.new(0.31, 0, 0, 46)
 
 local shop = Instance.new("Frame")
 shop.Name = "ShopMenu"
@@ -672,9 +681,50 @@ shopList.SortOrder = Enum.SortOrder.LayoutOrder
 shopList.Parent = shopItems
 
 local latestShopTools = {}
+local latestInventory = nil
 local activeShopClerk: BasePart? = nil
 local shopSessionOpen = false
 local shopSessionToken = 0
+
+local saleConfirmation = Instance.new("Frame")
+saleConfirmation.Name = "SaleConfirmation"
+saleConfirmation.AnchorPoint = Vector2.new(0.5, 0.5)
+saleConfirmation.Position = UDim2.fromScale(0.5, 0.5)
+saleConfirmation.Size = UDim2.new(0.88, 0, 0, 180)
+saleConfirmation.BackgroundColor3 = COLORS.Ink
+saleConfirmation.BorderSizePixel = 0
+saleConfirmation.Visible = false
+saleConfirmation.ZIndex = 50
+saleConfirmation.Parent = screenGui
+addCorner(saleConfirmation)
+addStroke(saleConfirmation, COLORS.Gold, 3)
+local saleConfirmationConstraint = Instance.new("UISizeConstraint")
+saleConfirmationConstraint.MinSize = Vector2.new(300, 180)
+saleConfirmationConstraint.MaxSize = Vector2.new(360, 180)
+saleConfirmationConstraint.Parent = saleConfirmation
+
+local saleConfirmationText = Instance.new("TextLabel")
+saleConfirmationText.Position = UDim2.fromOffset(20, 18)
+saleConfirmationText.Size = UDim2.new(1, -40, 0, 82)
+saleConfirmationText.BackgroundTransparency = 1
+saleConfirmationText.TextColor3 = COLORS.Cream
+saleConfirmationText.TextSize = 18
+saleConfirmationText.TextWrapped = true
+saleConfirmationText.Font = Enum.Font.GothamBold
+saleConfirmationText.ZIndex = 51
+saleConfirmationText.Parent = saleConfirmation
+
+local confirmSale = createChoiceButton("Sell it", UDim2.new(), COLORS.Green)
+confirmSale.Parent = saleConfirmation
+confirmSale.Position = UDim2.new(0, 20, 1, -62)
+confirmSale.Size = UDim2.new(0.46, -24, 0, 44)
+confirmSale.ZIndex = 51
+local cancelSale = createChoiceButton("Keep it", UDim2.new(), COLORS.PanelLight)
+cancelSale.Parent = saleConfirmation
+cancelSale.Position = UDim2.new(0.5, 4, 1, -62)
+cancelSale.Size = UDim2.new(0.5, -24, 0, 44)
+cancelSale.ZIndex = 51
+local pendingSaleItemId: string? = nil
 
 local function closeShopSession()
 	shopSessionOpen = false
@@ -682,6 +732,8 @@ local function closeShopSession()
 	activeShopClerk = nil
 	dialogue.Visible = false
 	shop.Visible = false
+	saleConfirmation.Visible = false
+	pendingSaleItemId = nil
 end
 
 local function monitorShopDistance()
@@ -743,13 +795,17 @@ local function renderShop(toolDefinitions)
 		details.Position = UDim2.fromOffset(18, 48)
 		details.Size = UDim2.new(1, -170, 0, 74)
 		details.BackgroundTransparency = 1
-		details.Text = string.format(
-			"Durability: %d | %d-%d clicks\n%s",
-			definition.MaxDurability,
-			definition.ClicksMin,
-			definition.ClicksMax,
-			definition.Description or ""
-		)
+		if definition.ItemKind == "cleaning_tool" then
+			details.Text = string.format(
+				"Durability: %d | %d-%d clicks\n%s",
+				definition.MaxDurability,
+				definition.ClicksMin,
+				definition.ClicksMax,
+				definition.Description or ""
+			)
+		else
+			details.Text = definition.Description or ""
+		end
 		details.TextColor3 = Color3.fromRGB(202, 219, 222)
 		details.TextSize = 14
 		details.TextWrapped = true
@@ -763,18 +819,108 @@ local function renderShop(toolDefinitions)
 		buyButton.AnchorPoint = Vector2.new(1, 0.5)
 		buyButton.Position = UDim2.new(1, -14, 0.5, 0)
 		buyButton.Size = UDim2.fromOffset(125, 70)
-		buyButton.BackgroundColor3 = COLORS.Green
+		local minimumLevel = definition.MinimumLevel or 0
+		local playerLevel = if latestInventory then latestInventory.level or 0 else 0
+		local locked = playerLevel < minimumLevel
+		buyButton.BackgroundColor3 = if locked then Color3.fromRGB(83, 88, 88) else COLORS.Green
 		buyButton.BorderSizePixel = 0
-		buyButton.Text = string.format("BUY\n%d coins", definition.Price)
+		buyButton.Text = if locked
+			then string.format("LOCKED\nLEVEL %d", minimumLevel)
+			else string.format("BUY\n%d coins", definition.Price)
 		buyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 		buyButton.TextSize = 17
 		buyButton.Font = Enum.Font.GothamBold
 		buyButton.ZIndex = 17
 		buyButton.Parent = row
+		buyButton.Active = not locked
+		buyButton.AutoButtonColor = not locked
 		addCorner(buyButton, 4)
 		buyButton.MouseButton1Click:Connect(function()
-			purchaseTool:FireServer(definition.Id)
+			if not locked then
+				purchaseTool:FireServer(definition.Id)
+			end
 		end)
+	end
+end
+
+local function renderSellInventory()
+	shopTitle.Text = "SELL TO MILO"
+	for _, child in ipairs(shopItems:GetChildren()) do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	if not latestInventory then
+		return
+	end
+	local sellableCount = 0
+	for _, item in ipairs(latestInventory.inventory) do
+		if item.canSell ~= false then
+			sellableCount += 1
+			local row = Instance.new("Frame")
+			row.Name = item.id
+			row.LayoutOrder = sellableCount
+			row.Size = UDim2.new(1, 0, 0, 92)
+			row.BackgroundColor3 = COLORS.PanelLight
+			row.BorderSizePixel = 0
+			row.ZIndex = 16
+			row.Parent = shopItems
+			addCorner(row, 5)
+
+			local details = Instance.new("TextLabel")
+			details.Position = UDim2.fromOffset(16, 10)
+			details.Size = UDim2.new(1, -160, 1, -20)
+			details.BackgroundTransparency = 1
+			details.Text = string.format(
+				"%s\nDurability %d/%d",
+				item.displayName,
+				item.durability,
+				item.maxDurability
+			)
+			details.TextColor3 = COLORS.Cream
+			details.TextSize = 16
+			details.TextWrapped = true
+			details.Font = Enum.Font.GothamMedium
+			details.TextXAlignment = Enum.TextXAlignment.Left
+			details.TextYAlignment = Enum.TextYAlignment.Center
+			details.ZIndex = 17
+			details.Parent = row
+
+			local sellButton = Instance.new("TextButton")
+			sellButton.AnchorPoint = Vector2.new(1, 0.5)
+			sellButton.Position = UDim2.new(1, -12, 0.5, 0)
+			sellButton.Size = UDim2.fromOffset(125, 60)
+			sellButton.BackgroundColor3 = Color3.fromRGB(139, 74, 54)
+			sellButton.BorderSizePixel = 0
+			sellButton.Text = string.format("SELL\n%d coins", item.resaleValue)
+			sellButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+			sellButton.TextSize = 16
+			sellButton.Font = Enum.Font.GothamBold
+			sellButton.ZIndex = 17
+			sellButton.Parent = row
+			addCorner(sellButton, 4)
+			sellButton.MouseButton1Click:Connect(function()
+				pendingSaleItemId = item.id
+				saleConfirmationText.Text = string.format(
+					"Sell %s to Milo for %d coins?",
+					item.displayName,
+					item.resaleValue
+				)
+				saleConfirmation.Visible = true
+			end)
+		end
+	end
+	if sellableCount == 0 then
+		local empty = Instance.new("TextLabel")
+		empty.Size = UDim2.new(1, 0, 0, 80)
+		empty.BackgroundTransparency = 1
+		empty.Text = "You do not have any tools Milo can buy."
+		empty.TextColor3 = COLORS.Cream
+		empty.TextSize = 18
+		empty.TextWrapped = true
+		empty.Font = Enum.Font.GothamMedium
+		empty.ZIndex = 17
+		empty.Parent = shopItems
 	end
 end
 
@@ -789,9 +935,17 @@ end)
 
 buyChoice.MouseButton1Click:Connect(function()
 	dialogue.Visible = false
+	shopTitle.Text = "CORNER CLEAN SUPPLY"
+	renderShop(latestShopTools)
 	if #latestShopTools > 0 then
 		shop.Visible = true
 	end
+end)
+
+sellChoice.MouseButton1Click:Connect(function()
+	dialogue.Visible = false
+	renderSellInventory()
+	shop.Visible = true
 end)
 
 leaveChoice.MouseButton1Click:Connect(function()
@@ -800,6 +954,19 @@ end)
 
 closeShop.MouseButton1Click:Connect(function()
 	closeShopSession()
+end)
+
+confirmSale.MouseButton1Click:Connect(function()
+	if pendingSaleItemId then
+		sellInventoryItem:FireServer(pendingSaleItemId)
+	end
+	saleConfirmation.Visible = false
+	pendingSaleItemId = nil
+end)
+
+cancelSale.MouseButton1Click:Connect(function()
+	saleConfirmation.Visible = false
+	pendingSaleItemId = nil
 end)
 
 local lastDirtRequestAt = 0
@@ -820,6 +987,7 @@ local function requestDirtSpot(dirt: BasePart?)
 		or activeCleaning
 		or dialogue.Visible
 		or shop.Visible
+		or saleConfirmation.Visible
 	then
 		return
 	end
@@ -836,7 +1004,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	local isPointerClick = input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch
 	if activeCleaning and isPointerClick then
-		if dialogue.Visible or shop.Visible or inventoryController:isVisible() then
+		if
+			dialogue.Visible
+			or shop.Visible
+			or saleConfirmation.Visible
+			or inventoryController:isVisible()
+		then
 			return
 		end
 		if qualityAbilityButton.Visible and pointIsInside(qualityAbilityButton, input.Position) then
@@ -850,7 +1023,13 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		return
 	end
 
-	if gameProcessed or dialogue.Visible or shop.Visible or inventoryController:isVisible() then
+	if
+		gameProcessed
+		or dialogue.Visible
+		or shop.Visible
+		or saleConfirmation.Visible
+		or inventoryController:isVisible()
+	then
 		return
 	end
 	if not isPointerClick then
@@ -872,7 +1051,6 @@ end)
 
 notifyRemote.OnClientEvent:Connect(showNotification)
 
-local latestInventory = nil
 local function updateMoneyStatus()
 	if latestInventory then
 		moneyLabel.Text = string.format("COINS  %d", latestInventory.coins or 0)
@@ -966,7 +1144,11 @@ local function isCleaningToolHeld(): boolean
 		return false
 	end
 	for _, child in ipairs(character:GetChildren()) do
-		if child:IsA("Tool") and child:GetAttribute("CarWashRushTool") == true then
+		if
+			child:IsA("Tool")
+			and child:GetAttribute("CarWashRushTool") == true
+			and child:GetAttribute("ItemKind") == "cleaning_tool"
+		then
 			return true
 		end
 	end
@@ -985,6 +1167,13 @@ inventoryUpdated.OnClientEvent:Connect(function(snapshot)
 	updateQualitySpongeStatus()
 	updateToolStatus()
 	updateDirtHighlights()
+	if shop.Visible then
+		if shopTitle.Text == "SELL TO MILO" then
+			renderSellInventory()
+		else
+			renderShop(latestShopTools)
+		end
+	end
 end)
 
 local sprinting = false
@@ -1061,6 +1250,9 @@ local function configureLocalCharacter(character: Model)
 			task.defer(updateDirtHighlights)
 		end)
 		tool.Activated:Connect(function()
+			if tool:GetAttribute("ItemKind") ~= "cleaning_tool" then
+				return
+			end
 			local target = mouse.Target
 			requestDirtSpot(if target and target:IsA("BasePart") then target else nil)
 		end)

@@ -1,0 +1,46 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Workspace = game:GetService("Workspace")
+
+local server = ServerScriptService:WaitForChild("CarWashRushServer")
+local systems = server:WaitForChild("Systems")
+local Config = require(ReplicatedStorage.Shared.Config)
+local Catalog = require(ReplicatedStorage.Shared.Catalog)
+local GreyboxStarterCorner = require(systems.GreyboxStarterCorner)
+local PrototypeGameplay = require(systems.PrototypeGameplay)
+local Remotes = require(systems.Remotes)
+
+Remotes.start(Config.RemotesFolderName)
+local greybox = GreyboxStarterCorner.build()
+PrototypeGameplay.start(greybox)
+
+local root = Workspace:FindFirstChild(Config.World.RootFolderName)
+assert(root, "generated world root is missing")
+local levelOneDump = root:FindFirstChild("SharedSalvageDump")
+local aircraftYard = root:FindFirstChild("AircraftSalvageYard")
+assert(levelOneDump, "level-one salvage dump is missing")
+assert(aircraftYard, "aircraft salvage yard is missing")
+assert(levelOneDump:FindFirstChild("LadderPlacement"), "ladder placement point is missing")
+assert(aircraftYard:FindFirstChild("NorthTallFence"), "north aircraft-yard fence is missing")
+assert(aircraftYard:FindFirstChild("SouthTallFence"), "south aircraft-yard fence is missing")
+assert(aircraftYard:FindFirstChild("EastTallFence"), "east aircraft-yard fence is missing")
+assert(aircraftYard:FindFirstChild("WestTallFence"), "west aircraft-yard fence is missing")
+
+local trashcanCount = 0
+local dumpsterCount = 0
+for _, child in aircraftYard:GetChildren() do
+	if child:IsA("Model") and string.match(child.Name, "^Trashcan_") then
+		trashcanCount += 1
+	elseif child:IsA("Model") and string.match(child.Name, "^Dumpster_") then
+		dumpsterCount += 1
+	end
+end
+assert(trashcanCount == Config.Trash.LevelTwoCanCount, "wrong aircraft-yard trashcan count")
+assert(dumpsterCount == Config.Trash.LevelTwoDumpsterCount, "wrong aircraft-yard dumpster count")
+
+local ladder = Catalog.getTool("item_salvage_ladder")
+assert(ladder.Price == 1000, "ladder price changed unexpectedly")
+assert(ladder.MinimumLevel == 10, "ladder unlock level changed unexpectedly")
+assert(ladder.CanSell == false, "placed access ladder must not be resellable")
+
+print("CAR_WASH_RUSH_WORLD_SMOKE_PASSED")

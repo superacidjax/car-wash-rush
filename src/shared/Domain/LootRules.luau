@@ -11,6 +11,13 @@ local function boundedRoll(roll: number): number
 	return math.clamp(math.floor(roll), 1, 100)
 end
 
+function LootRules.scaleAndRoundReward(reward: number, multiplier: number): number
+	if reward <= 0 or multiplier <= 0 then
+		return 0
+	end
+	return math.ceil((reward * multiplier) / 10) * 10
+end
+
 function LootRules.rollTrashCan(hasFoundRag: boolean, roll: number): LootOutcome
 	local value = boundedRoll(roll)
 	if not hasFoundRag then

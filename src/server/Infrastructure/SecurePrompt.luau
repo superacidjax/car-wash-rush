@@ -32,20 +32,29 @@ function SecurePrompt.bind(
 	prompt: ProximityPrompt,
 	requiredSeconds: number,
 	callback: (Player) -> (),
-	canBegin: ((Player) -> boolean)?
+	canBegin: ((Player) -> boolean)?,
+	onDenied: ((Player) -> ())?
 ): () -> ()
 	local startedAt: { [Player]: number } = setmetatable({}, { __mode = "k" }) :: any
+	local lastDeniedAt: { [Player]: number } = setmetatable({}, { __mode = "k" }) :: any
 	local connections: { RBXScriptConnection } = {}
 
 	table.insert(
 		connections,
 		prompt.PromptButtonHoldBegan:Connect(function(player)
+			local allowed = not canBegin or canBegin(player)
 			if
 				prompt.Enabled
 				and isNear(player, prompt, prompt.MaxActivationDistance + 2)
-				and (not canBegin or canBegin(player))
+				and allowed
 			then
 				startedAt[player] = os.clock()
+			elseif prompt.Enabled and not allowed and onDenied then
+				local now = os.clock()
+				if not lastDeniedAt[player] or now - lastDeniedAt[player] >= 1 then
+					lastDeniedAt[player] = now
+					onDenied(player)
+				end
 			end
 		end)
 	)
@@ -80,6 +89,7 @@ function SecurePrompt.bind(
 			connection:Disconnect()
 		end
 		table.clear(startedAt)
+		table.clear(lastDeniedAt)
 	end
 end
 
