@@ -11,6 +11,18 @@ Config.Player = {
 	SprintMultiplier = 1.55,
 }
 
+Config.Inventory = {
+	HotbarCapacity = 8,
+}
+
+Config.Persistence = {
+	AutosaveSeconds = 60,
+	SaveDebounceSeconds = 15,
+	SessionLeaseSeconds = 180,
+	RetryCount = 4,
+	ShutdownTimeoutSeconds = 25,
+}
+
 Config.Experience = {
 	DirtSpotReward = 10,
 	FirstLevelRequirement = 50,

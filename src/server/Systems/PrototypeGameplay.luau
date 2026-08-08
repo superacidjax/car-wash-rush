@@ -4,6 +4,7 @@ local Workspace = game:GetService("Workspace")
 
 local Catalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Catalog"))
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
 local PlayerData = require(script.Parent:WaitForChild("PlayerData"))
 local Remotes = require(script.Parent:WaitForChild("Remotes"))
 
@@ -212,8 +213,7 @@ end
 
 local spawnDirtyCar
 
-local function awardExperience(player: Player, amount: number)
-	local levelsGained, newLevel = PlayerData.addExperience(player, amount)
+local function announceLevelUp(player: Player, levelsGained: number, newLevel: number)
 	if levelsGained > 0 then
 		notify(player, string.format("Level up! You are now level %d.", newLevel))
 	end
@@ -227,13 +227,30 @@ local function completeDirtSpot(player: Player, session)
 		dirt:Destroy()
 	end
 
-	local _, remainingDurability = PlayerData.useDurability(player, session.itemId, 1)
-	if session.toolId == "tool_sponge" then
-		PlayerData.addCoins(player, Config.Cleaning.SpongeSpotCoinReward)
-	elseif session.toolId == "tool_quality_sponge" then
-		PlayerData.addQualitySpongeCharge(player, 1)
+	local completedVehicle = car and car.Parent and countRemainingDirt(car) == 0
+	local completionCoins = if completedVehicle
+		then car:GetAttribute("CompletionCoins") or 25
+		else 0
+	local completionExperience = if completedVehicle
+		then car:GetAttribute("CompletionExperience") or 50
+		else 0
+	local spotCoins = if session.toolId == "tool_sponge"
+		then Config.Cleaning.SpongeSpotCoinReward
+		else 0
+	local success, remainingDurability, levelsGained, newLevel = PlayerData.completeCleaningSpot(
+		player,
+		session.itemId,
+		spotCoins + completionCoins,
+		Config.Experience.DirtSpotReward + completionExperience,
+		if session.toolId == "tool_quality_sponge" then 1 else 0
+	)
+	if not success then
+		Remotes.get("CleaningEnded")
+			:FireClient(player, false, "That tool could not clean the spot.")
+		return
 	end
-	awardExperience(player, Config.Experience.DirtSpotReward)
+	announceLevelUp(player, levelsGained, newLevel)
+
 	Remotes.get("CleaningEnded"):FireClient(
 		player,
 		true,
@@ -243,12 +260,8 @@ local function completeDirtSpot(player: Player, session)
 		notify(player, session.toolName .. " wore out and is now broken.")
 	end
 
-	if car and car.Parent and countRemainingDirt(car) == 0 then
-		local completionCoins = car:GetAttribute("CompletionCoins") or 25
-		local completionExperience = car:GetAttribute("CompletionExperience") or 50
+	if completedVehicle then
 		local vehicleName = car:GetAttribute("VehicleDisplayName") or "Vehicle"
-		PlayerData.addCoins(player, completionCoins)
-		awardExperience(player, completionExperience)
 		notify(
 			player,
 			string.format(
@@ -1068,53 +1081,37 @@ local function searchTrashcan(searchingPlayer: Player, canIndex: number)
 	state.searchCount += 1
 	setTrashcanSearched(state.cans[canIndex], true)
 
-	if not PlayerData.hasFoundRag(searchingPlayer) then
-		local roll = math.random(1, 100)
-		if roll <= Config.Trash.FirstRagChance then
-			PlayerData.setRagFound(searchingPlayer)
-			PlayerData.grantTool(searchingPlayer, "tool_old_rag", true)
+	local outcome =
+		LootRules.rollTrashCan(PlayerData.hasFoundRag(searchingPlayer), math.random(1, 100))
+	if outcome.kind == "rag" then
+		if PlayerData.grantFoundRag(searchingPlayer) then
 			notify(
 				searchingPlayer,
 				"You found an old rag. It has 20 durability and is now equipped."
 			)
-		elseif roll <= Config.Trash.FirstRagChance + Config.Trash.FirstRagCoinChance then
-			PlayerData.addCoins(searchingPlayer, Config.Trash.SmallCoinReward)
+		end
+	elseif outcome.kind == "coins" then
+		PlayerData.addCoins(searchingPlayer, outcome.coins)
+		if not PlayerData.hasFoundRag(searchingPlayer) then
+			notify(searchingPlayer, string.format("You found %d coins, but no rag.", outcome.coins))
+		elseif outcome.coins == Config.Trash.JackpotCoinReward then
 			notify(
 				searchingPlayer,
-				string.format("You found %d coins, but no rag.", Config.Trash.SmallCoinReward)
+				string.format("Jackpot! This trashcan had %d coins.", outcome.coins)
+			)
+		elseif outcome.coins == Config.Trash.MediumCoinReward then
+			notify(
+				searchingPlayer,
+				string.format("Good find! This trashcan had %d coins.", outcome.coins)
 			)
 		else
-			notify(searchingPlayer, "This trashcan is empty.")
+			notify(
+				searchingPlayer,
+				string.format("You found %d coins in the trashcan.", outcome.coins)
+			)
 		end
 	else
-		local roll = math.random(1, 100)
-		if roll <= Config.Trash.PostRagSmallCoinChance then
-			PlayerData.addCoins(searchingPlayer, Config.Trash.SmallCoinReward)
-			notify(
-				searchingPlayer,
-				string.format("You found %d coins in the trashcan.", Config.Trash.SmallCoinReward)
-			)
-		elseif
-			roll <= Config.Trash.PostRagSmallCoinChance + Config.Trash.PostRagMediumCoinChance
-		then
-			PlayerData.addCoins(searchingPlayer, Config.Trash.MediumCoinReward)
-			notify(
-				searchingPlayer,
-				string.format(
-					"Good find! This trashcan had %d coins.",
-					Config.Trash.MediumCoinReward
-				)
-			)
-		else
-			PlayerData.addCoins(searchingPlayer, Config.Trash.JackpotCoinReward)
-			notify(
-				searchingPlayer,
-				string.format(
-					"Jackpot! This trashcan had %d coins.",
-					Config.Trash.JackpotCoinReward
-				)
-			)
-		end
+		notify(searchingPlayer, "This trashcan is empty.")
 	end
 	if state.searchCount >= Config.Trash.CanCount then
 		refillTrashcans(state)
@@ -1690,8 +1687,9 @@ function PrototypeGameplay.start(greybox)
 		if not item or item.toolId ~= "tool_quality_sponge" or item.durability <= 0 then
 			return
 		end
-		if PlayerData.claimQualitySpongeCharge(player) then
-			PlayerData.addCoins(player, Config.Cleaning.QualitySpongeAbilityReward)
+		if
+			PlayerData.claimQualitySpongeAbility(player, Config.Cleaning.QualitySpongeAbilityReward)
+		then
 			notify(
 				player,
 				string.format(

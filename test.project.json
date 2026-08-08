@@ -12,6 +12,11 @@
       "Tests": {
         "$path": "tests"
       }
+    },
+    "ServerScriptService": {
+      "Infrastructure": {
+        "$path": "src/server/Infrastructure"
+      }
     }
   }
 }
