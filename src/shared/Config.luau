@@ -11,6 +11,55 @@ Config.Player = {
 	SprintMultiplier = 1.55,
 }
 
+Config.Multiplayer = {
+	PrototypeMaxPlayers = 8,
+}
+
+Config.Demand = {
+	IntervalSeconds = 20 * 60,
+	MinimumDurationSeconds = 8 * 60,
+	MaximumDurationSeconds = 12 * 60,
+	Events = {
+		{
+			Id = "festival_traffic",
+			DisplayName = "Festival Traffic",
+			Description = "Busy streets are paying 20% more for clean vehicles.",
+			CoinMultiplier = 1.2,
+		},
+		{
+			Id = "dust_storm",
+			DisplayName = "Dust Storm",
+			Description = "Dusty arrivals are paying 25% more citywide.",
+			CoinMultiplier = 1.25,
+		},
+		{
+			Id = "farm_rush",
+			DisplayName = "Farm Equipment Rush",
+			Description = "Heavy-work customers are paying 20% more.",
+			CoinMultiplier = 1.2,
+		},
+		{
+			Id = "luxury_convention",
+			DisplayName = "Luxury Car Convention",
+			Description = "Careful cleaning earns a 30% premium.",
+			CoinMultiplier = 1.3,
+		},
+		{
+			Id = "rain_ended",
+			DisplayName = "Rain Just Ended",
+			Description = "Wash demand is surging: payouts are up 25%.",
+			CoinMultiplier = 1.25,
+		},
+		{
+			Id = "power_shortage",
+			DisplayName = "Power Shortage",
+			Description = "Manual cleaning tools earn a 35% payout bonus.",
+			CoinMultiplier = 1,
+			ManualToolMultiplier = 1.35,
+		},
+	},
+}
+
 Config.Inventory = {
 	HotbarCapacity = 8,
 }
@@ -89,6 +138,7 @@ Config.RemoteLimits = {
 	PurchaseTool = { Rate = 2, Burst = 4 },
 	RequestCleanSpot = { Rate = 4, Burst = 6 },
 	RequestInventory = { Rate = 0.5, Burst = 2 },
+	RequestDemandState = { Rate = 0.5, Burst = 2 },
 	RequestTeleport = { Rate = 1, Burst = 2 },
 	SellInventoryItem = { Rate = 3, Burst = 5 },
 	SprintChanged = { Rate = 4, Burst = 6 },

@@ -4,6 +4,7 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Co
 local Systems = script.Parent:WaitForChild("Systems")
 
 local GreyboxStarterCorner = require(Systems:WaitForChild("GreyboxStarterCorner"))
+local DemandSystem = require(Systems:WaitForChild("DemandSystem"))
 local MovementSystem = require(Systems:WaitForChild("MovementSystem"))
 local PlayerData = require(Systems:WaitForChild("PlayerData"))
 local PrototypeGameplay = require(Systems:WaitForChild("PrototypeGameplay"))
@@ -20,6 +21,7 @@ else
 end
 
 MovementSystem.start()
+DemandSystem.start()
 PrototypeGameplay.start(greybox)
 
 print("[Car Wash Rush] Server loaded.")

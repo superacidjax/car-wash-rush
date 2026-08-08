@@ -8,6 +8,7 @@ local Workspace = game:GetService("Workspace")
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Controllers = script.Parent:WaitForChild("Controllers")
 local HighlightController = require(Controllers:WaitForChild("HighlightController"))
+local DemandController = require(Controllers:WaitForChild("DemandController"))
 local InventoryController = require(Controllers:WaitForChild("InventoryController"))
 
 local player = Players.LocalPlayer
@@ -22,6 +23,7 @@ local cleaningClick = remote("CleaningClick")
 local cleaningEnded = remote("CleaningEnded")
 local cleaningProgress = remote("CleaningProgress")
 local cleaningStarted = remote("CleaningStarted")
+local demandStateUpdated = remote("DemandStateUpdated")
 local claimQualitySpongeAbility = remote("ClaimQualitySpongeAbility")
 local equipInventoryItem = remote("EquipInventoryItem")
 local inventoryUpdated = remote("InventoryUpdated")
@@ -30,6 +32,7 @@ local openShopDialogue = remote("OpenShopDialogue")
 local purchaseTool = remote("PurchaseTool")
 local requestCleanSpot = remote("RequestCleanSpot")
 local requestInventory = remote("RequestInventory")
+local requestDemandState = remote("RequestDemandState")
 local requestTeleport = remote("RequestTeleport")
 local sellInventoryItem = remote("SellInventoryItem")
 local sprintChanged = remote("SprintChanged")
@@ -51,6 +54,8 @@ screenGui.IgnoreGuiInset = true
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
+
+DemandController.new(screenGui, demandStateUpdated, requestDemandState)
 
 local highlightController = HighlightController.new(player, Config.World.PrototypeCarsFolderName)
 local inventoryController = InventoryController.new(screenGui, {

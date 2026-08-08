@@ -11,6 +11,7 @@ local OnboardingRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("On
 local PlotRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("PlotRules"))
 local VehicleRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("VehicleRules"))
 local PlayerData = require(script.Parent:WaitForChild("PlayerData"))
+local DemandSystem = require(script.Parent:WaitForChild("DemandSystem"))
 local Remotes = require(script.Parent:WaitForChild("Remotes"))
 local SecurePrompt =
 	require(script.Parent.Parent:WaitForChild("Infrastructure"):WaitForChild("SecurePrompt"))
@@ -246,6 +247,10 @@ local function completeDirtSpot(player: Player, session)
 	local completionCoins = if completedVehicle
 		then car:GetAttribute("CompletionCoins") or 25
 		else 0
+	if completedVehicle and completionCoins > 0 then
+		completionCoins =
+			math.floor(completionCoins * DemandSystem.getCoinMultiplier(session.toolId) + 0.5)
+	end
 	local completionExperience = if completedVehicle
 		then car:GetAttribute("CompletionExperience") or 50
 		else 0
@@ -286,6 +291,7 @@ local function completeDirtSpot(player: Player, session)
 			return
 		end
 		local vehicleName = car:GetAttribute("VehicleDisplayName") or "Vehicle"
+		PlayerData.incrementLevelOneCarsCompleted(player)
 		notify(
 			player,
 			string.format(
