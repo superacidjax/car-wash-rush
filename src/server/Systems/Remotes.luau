@@ -29,6 +29,7 @@ local REMOTE_NAMES = {
 	"RequestDemandState",
 	"RequestTeleport",
 	"SellInventoryItem",
+	"SetAssistanceMode",
 	"SprintChanged",
 }
 

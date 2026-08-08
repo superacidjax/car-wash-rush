@@ -15,6 +15,11 @@ Config.Multiplayer = {
 	PrototypeMaxPlayers = 8,
 }
 
+Config.Assistance = {
+	HelperWageMultiplier = 0.3,
+	OwnerCooperationBonusMultiplier = 0.1,
+}
+
 Config.Demand = {
 	IntervalSeconds = 20 * 60,
 	MinimumDurationSeconds = 8 * 60,
@@ -162,6 +167,7 @@ Config.RemoteLimits = {
 	ForceCooperativeEvent = { Rate = 0.2, Burst = 1 },
 	RequestTeleport = { Rate = 1, Burst = 2 },
 	SellInventoryItem = { Rate = 3, Burst = 5 },
+	SetAssistanceMode = { Rate = 1, Burst = 3 },
 	SprintChanged = { Rate = 4, Burst = 6 },
 }
 

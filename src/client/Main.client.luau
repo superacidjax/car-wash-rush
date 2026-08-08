@@ -41,6 +41,7 @@ local requestInventory = remote("RequestInventory")
 local requestDemandState = remote("RequestDemandState")
 local requestTeleport = remote("RequestTeleport")
 local sellInventoryItem = remote("SellInventoryItem")
+local setAssistanceMode = remote("SetAssistanceMode")
 local sprintChanged = remote("SprintChanged")
 
 local COLORS = {
@@ -143,6 +144,33 @@ travelButton.Parent = screenGui
 addCorner(travelButton, 6)
 addStroke(travelButton, Color3.fromRGB(120, 210, 240), 2)
 table.insert(navigationButtons, travelButton)
+
+local assistanceButton = Instance.new("TextButton")
+assistanceButton.Name = "AssistanceModeButton"
+assistanceButton.Position = UDim2.fromOffset(176, 116)
+assistanceButton.Size = UDim2.fromOffset(154, 44)
+assistanceButton.BackgroundColor3 = Color3.fromRGB(63, 105, 74)
+assistanceButton.BorderSizePixel = 0
+assistanceButton.Text = "HELP: PRIVATE"
+assistanceButton.TextColor3 = COLORS.Cream
+assistanceButton.TextSize = 14
+assistanceButton.Font = Enum.Font.GothamBold
+assistanceButton.ZIndex = 40
+assistanceButton.Parent = screenGui
+addCorner(assistanceButton, 6)
+addStroke(assistanceButton, Color3.fromRGB(121, 218, 149), 2)
+table.insert(navigationButtons, assistanceButton)
+assistanceButton.MouseButton1Click:Connect(function()
+	if not navigationEnabled then
+		return
+	end
+	local currentMode = if latestInventory then latestInventory.assistanceMode else "private"
+	local nextMode = if currentMode == "private"
+		then "friends"
+		elseif currentMode == "friends" then "open"
+		else "private"
+	setAssistanceMode:FireServer(nextMode)
+end)
 
 local travelPanel = Instance.new("Frame")
 travelPanel.Name = "TravelPanel"
@@ -275,6 +303,8 @@ local function updateTravelPanel()
 		end
 		button.Text = string.format("%s    |    %s", string.upper(definition.DisplayName), status)
 	end
+	local assistanceMode = if snapshot then snapshot.assistanceMode or "private" else "private"
+	assistanceButton.Text = "HELP: " .. string.upper(assistanceMode)
 end
 
 travelButton.MouseButton1Click:Connect(function()

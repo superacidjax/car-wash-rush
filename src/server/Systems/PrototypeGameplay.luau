@@ -6,6 +6,7 @@ local Catalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("C
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local CleaningRules =
 	require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("CleaningRules"))
+local AssistanceRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("AssistanceRules"))
 local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
 local OnboardingRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("OnboardingRules"))
 local PlotRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("PlotRules"))
@@ -39,6 +40,8 @@ local playerZoneSlots = {}
 local playerZones = {}
 local activeCars = {}
 local activeCleaning = {}
+local activeSpotCleaners = {}
+local vehicleHelpers = {}
 local sharedTrashState = nil
 local sharedDumpsterState = nil
 local sharedDumpReference = nil
@@ -162,16 +165,43 @@ local function countRemainingDirt(car: Model): number
 end
 
 local function cancelCleaning(player: Player, reason: string?)
-	if not activeCleaning[player] then
+	local session = activeCleaning[player]
+	if not session then
 		return
+	end
+	if activeSpotCleaners[session.spot] == player then
+		activeSpotCleaners[session.spot] = nil
 	end
 	activeCleaning[player] = nil
 	Remotes.get("CleaningEnded"):FireClient(player, false, reason or "Cleaning cancelled.")
 end
 
 local function beginCleaning(player: Player, dirt: BasePart, car: Model)
-	if car:GetAttribute("OwnerUserId") ~= player.UserId then
-		notify(player, "This vehicle belongs to another player.")
+	local ownerUserId = car:GetAttribute("OwnerUserId")
+	local owner = if type(ownerUserId) == "number"
+		then Players:GetPlayerByUserId(ownerUserId)
+		else nil
+	local isOwner = owner == player
+	if not isOwner then
+		if not owner or car:GetAttribute("RequiredCleaningTier") ~= 1 then
+			notify(player, "This vehicle belongs to another player.")
+			return
+		end
+		local isFriend = false
+		local friendSuccess, friendResult = pcall(function()
+			return owner:IsFriendsWith(player.UserId)
+		end)
+		if friendSuccess then
+			isFriend = friendResult
+		end
+		if not AssistanceRules.canAssist(PlayerData.getAssistanceMode(owner), isFriend) then
+			notify(player, "This wash is not accepting your help right now.")
+			return
+		end
+	end
+	local claimedBy = activeSpotCleaners[dirt]
+	if claimedBy and claimedBy ~= player then
+		notify(player, "Another player is already cleaning that spot.")
 		return
 	end
 	if not PlayerData.hasFoundRag(player) then
@@ -218,7 +248,14 @@ local function beginCleaning(player: Player, dirt: BasePart, car: Model)
 		progress = 0,
 		lastUpdate = os.clock(),
 		lastClickAt = 0,
+		owner = owner,
+		isHelper = not isOwner,
 	}
+	activeSpotCleaners[dirt] = player
+	if not isOwner then
+		vehicleHelpers[car] = vehicleHelpers[car] or {}
+		vehicleHelpers[car][player] = true
+	end
 
 	Remotes.get("CleaningStarted"):FireClient(player, {
 		requiredClicks = requiredClicks,
@@ -239,6 +276,9 @@ end
 local function completeDirtSpot(player: Player, session)
 	activeCleaning[player] = nil
 	local dirt = session.spot
+	if activeSpotCleaners[dirt] == player then
+		activeSpotCleaners[dirt] = nil
+	end
 	local car = session.car
 	if dirt and dirt.Parent then
 		dirt:Destroy()
@@ -258,11 +298,13 @@ local function completeDirtSpot(player: Player, session)
 	local spotCoins = if session.toolId == "tool_sponge"
 		then Config.Cleaning.SpongeSpotCoinReward
 		else 0
+	local cleanerCompletionCoins = if session.isHelper then 0 else completionCoins
+	local cleanerCompletionExperience = if session.isHelper then 0 else completionExperience
 	local success, remainingDurability, levelsGained, newLevel = PlayerData.completeCleaningSpot(
 		player,
 		session.itemId,
-		spotCoins + completionCoins,
-		Config.Experience.DirtSpotReward + completionExperience,
+		spotCoins + cleanerCompletionCoins,
+		Config.Experience.DirtSpotReward + cleanerCompletionExperience,
 		if session.toolId == "tool_quality_sponge" then 1 else 0
 	)
 	if not success then
@@ -292,23 +334,52 @@ local function completeDirtSpot(player: Player, session)
 			return
 		end
 		local vehicleName = car:GetAttribute("VehicleDisplayName") or "Vehicle"
-		PlayerData.incrementLevelOneCarsCompleted(player)
+		local owner = session.owner
+		if not owner or not owner.Parent then
+			car:Destroy()
+			return
+		end
+		local helpers = vehicleHelpers[car]
+		local hasHelpers = helpers ~= nil and next(helpers) ~= nil
+		local ownerBonus = if hasHelpers
+			then AssistanceRules.ownerBonus(
+				completionCoins,
+				Config.Assistance.OwnerCooperationBonusMultiplier
+			)
+			else 0
+		if session.isHelper then
+			local ownerLevels, ownerLevel = PlayerData.completeVehicle(
+				owner,
+				completionCoins + ownerBonus,
+				completionExperience
+			)
+			announceLevelUp(owner, ownerLevels, ownerLevel)
+			local wage =
+				AssistanceRules.helperWage(completionCoins, Config.Assistance.HelperWageMultiplier)
+			PlayerData.addCoins(player, wage)
+			notify(player, string.format("Helper wage: +%d coins", wage))
+		elseif ownerBonus > 0 then
+			PlayerData.addCoins(owner, ownerBonus)
+		end
+		PlayerData.incrementLevelOneCarsCompleted(owner)
 		notify(
-			player,
+			owner,
 			string.format(
-				"%s complete! +%d coins and +%d XP",
+				"%s complete! +%d coins%s and +%d XP",
 				vehicleName,
 				completionCoins,
+				if ownerBonus > 0 then string.format(" + %d teamwork", ownerBonus) else "",
 				completionExperience
 			)
 		)
-		activeCars[player] = nil
+		activeCars[owner] = nil
+		vehicleHelpers[car] = nil
 		task.delay(2, function()
 			if car.Parent then
 				car:Destroy()
 			end
-			if player.Parent and playerZones[player] then
-				spawnDirtyCar(player)
+			if owner.Parent and playerZones[owner] then
+				spawnDirtyCar(owner)
 			end
 		end)
 	end
@@ -2372,6 +2443,7 @@ local function cleanupPlayer(player: Player)
 	cancelCleaning(player)
 	local car = activeCars[player]
 	if car then
+		vehicleHelpers[car] = nil
 		car:Destroy()
 	end
 	local zone = playerZones[player]
@@ -2491,6 +2563,14 @@ function PrototypeGameplay.start(greybox)
 		end
 		local _, message = PlayerData.sellInventoryItem(player, itemId)
 		notify(player, message)
+	end)
+	Remotes.connect("SetAssistanceMode", function(player, mode)
+		if not AssistanceRules.isValidMode(mode) then
+			return
+		end
+		if PlayerData.setAssistanceMode(player, mode) then
+			notify(player, "Wash assistance is now " .. string.upper(mode) .. ".")
+		end
 	end)
 	Remotes.connect("RequestTeleport", function(player, locationId)
 		if type(locationId) ~= "string" then
