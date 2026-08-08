@@ -98,6 +98,9 @@ local function makeSnapshot(profile: any): any
 		level = profile.level,
 		experience = profile.experience,
 		experienceRequired = getExperienceRequired(profile.level),
+		eventTokens = profile.eventTokens,
+		levelOneCarsCompleted = profile.levelOneCarsCompleted,
+		assistanceMode = profile.assistanceMode,
 		qualitySpongeCharge = currentQualityCharge(profile),
 		ragFound = profile.ragFound,
 		ladderPlaced = profile.ladderPlaced,
@@ -128,6 +131,8 @@ local function updateReplicatedValues(player: Player)
 		local levelValue = profileFolder:FindFirstChild("Level")
 		local experienceValue = profileFolder:FindFirstChild("Experience")
 		local experienceRequiredValue = profileFolder:FindFirstChild("ExperienceRequired")
+		local eventTokensValue = profileFolder:FindFirstChild("EventTokens")
+		local assistanceModeValue = profileFolder:FindFirstChild("AssistanceMode")
 		local qualityChargeValue = profileFolder:FindFirstChild("QualitySpongeCharge")
 		if ragFoundValue and ragFoundValue:IsA("BoolValue") then
 			ragFoundValue.Value = profile.ragFound
@@ -143,6 +148,12 @@ local function updateReplicatedValues(player: Player)
 		end
 		if experienceRequiredValue and experienceRequiredValue:IsA("IntValue") then
 			experienceRequiredValue.Value = getExperienceRequired(profile.level)
+		end
+		if eventTokensValue and eventTokensValue:IsA("IntValue") then
+			eventTokensValue.Value = profile.eventTokens
+		end
+		if assistanceModeValue and assistanceModeValue:IsA("StringValue") then
+			assistanceModeValue.Value = profile.assistanceMode
 		end
 		if qualityChargeValue and qualityChargeValue:IsA("IntValue") then
 			qualityChargeValue.Value = currentQualityCharge(profile)
@@ -383,6 +394,8 @@ local function createPlayerValues(player: Player)
 			{ className = "IntValue", name = "Level" },
 			{ className = "IntValue", name = "Experience" },
 			{ className = "IntValue", name = "ExperienceRequired" },
+			{ className = "IntValue", name = "EventTokens" },
+			{ className = "StringValue", name = "AssistanceMode" },
 			{ className = "IntValue", name = "QualitySpongeCharge" },
 		}
 	do
@@ -604,6 +617,48 @@ function PlayerData.addExperience(player: Player, amount: number): (number, numb
 	local levelsGained, level = applyExperience(state.profile, amount)
 	markChanged(player)
 	return levelsGained, level
+end
+
+function PlayerData.addEventTokens(player: Player, amount: number): number
+	local state = states[player]
+	if not state then
+		return 0
+	end
+	state.profile.eventTokens = math.max(0, state.profile.eventTokens + math.floor(amount))
+	markChanged(player)
+	return state.profile.eventTokens
+end
+
+function PlayerData.getAssistanceMode(player: Player): string
+	local state = states[player]
+	return if state then state.profile.assistanceMode else "private"
+end
+
+function PlayerData.setAssistanceMode(player: Player, mode: string): boolean
+	local state = states[player]
+	if not state or not table.find({ "private", "friends", "open" }, mode) then
+		return false
+	end
+	if state.profile.assistanceMode ~= mode then
+		state.profile.assistanceMode = mode
+		markChanged(player)
+	end
+	return true
+end
+
+function PlayerData.getLevelOneCarsCompleted(player: Player): number
+	local state = states[player]
+	return if state then state.profile.levelOneCarsCompleted else 0
+end
+
+function PlayerData.incrementLevelOneCarsCompleted(player: Player): number
+	local state = states[player]
+	if not state then
+		return 0
+	end
+	state.profile.levelOneCarsCompleted += 1
+	markChanged(player)
+	return state.profile.levelOneCarsCompleted
 end
 
 function PlayerData.hasFoundRag(player: Player): boolean

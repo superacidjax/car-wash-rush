@@ -7,6 +7,7 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Co
 local CleaningRules =
 	require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("CleaningRules"))
 local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
+local OnboardingRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("OnboardingRules"))
 local PlotRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("PlotRules"))
 local VehicleRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("VehicleRules"))
 local PlayerData = require(script.Parent:WaitForChild("PlayerData"))
@@ -998,7 +999,8 @@ local function createTrashcan(zone: Model, position: Vector3, index: number)
 end
 
 local function setTrashcanSearched(can, searched: boolean)
-	can.prompt.Enabled = not searched
+	-- Missing-rag players may still check a shared emptied can once per refill.
+	can.prompt.Enabled = true
 	can.body.Color = if searched then Color3.fromRGB(91, 73, 55) else Color3.fromRGB(62, 72, 76)
 	can.lid.Color = if searched then Color3.fromRGB(121, 76, 42) else Color3.fromRGB(40, 49, 53)
 	for _, debris in ipairs(can.debris) do
@@ -1070,6 +1072,7 @@ local function refillTrashcans(state)
 			return
 		end
 		state.searched = {}
+		state.onboardingAttempts = {}
 		state.searchCount = 0
 		state.refilling = false
 		randomizeTrashcanPositions(state)
@@ -1084,17 +1087,36 @@ local function searchTrashcan(searchingPlayer: Player, canIndex: number)
 	if not state or state.refilling then
 		return
 	end
-	if state.searched[canIndex] then
-		notify(searchingPlayer, "That can has already been looted. Find another one.")
+	local wasSharedLooted = state.searched[canIndex] == true
+	local playerAttempts = state.onboardingAttempts[searchingPlayer.UserId]
+	local alreadyTriedForRag = playerAttempts and playerAttempts[canIndex] == true or false
+	local allowed, reason = OnboardingRules.canSearchSharedCan(
+		PlayerData.hasFoundRag(searchingPlayer),
+		wasSharedLooted,
+		alreadyTriedForRag
+	)
+	if not allowed then
+		notify(searchingPlayer, reason or "You cannot search that can right now.")
 		return
 	end
 
-	state.searched[canIndex] = true
-	state.searchCount += 1
-	setTrashcanSearched(state.cans[canIndex], true)
+	if not wasSharedLooted then
+		state.searched[canIndex] = true
+		state.searchCount += 1
+		setTrashcanSearched(state.cans[canIndex], true)
+	end
+	if not PlayerData.hasFoundRag(searchingPlayer) then
+		playerAttempts = playerAttempts or {}
+		state.onboardingAttempts[searchingPlayer.UserId] = playerAttempts
+		playerAttempts[canIndex] = true
+	end
 
 	local outcome =
 		LootRules.rollTrashCan(PlayerData.hasFoundRag(searchingPlayer), math.random(1, 100))
+	if wasSharedLooted and outcome.kind ~= "rag" then
+		notify(searchingPlayer, "No onboarding rag here. Try another can.")
+		return
+	end
 	if outcome.kind == "rag" then
 		if PlayerData.grantFoundRag(searchingPlayer) then
 			notify(
@@ -1483,6 +1505,7 @@ local function createSharedDump()
 	local state = {
 		cans = {},
 		searched = {},
+		onboardingAttempts = {},
 		searchCount = 0,
 		refilling = false,
 		positions = {},

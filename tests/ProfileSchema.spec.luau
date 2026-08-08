@@ -18,9 +18,24 @@ describe("ProfileSchema", function()
 			},
 		})
 
-		expect(profile.version).toBe(6)
+		expect(profile.version).toBe(7)
 		expect(profile.inventory[1].qualityCharge).toBe(0)
 		expect(profile.inventory[2].qualityCharge).toBe(7)
+	end)
+
+	it("persists multiplayer progression and rejects unknown assistance modes", function()
+		local profile = ProfileSchema.normalize({
+			eventTokens = 37,
+			levelOneCarsCompleted = 9,
+			assistanceMode = "open",
+		})
+
+		expect(profile.eventTokens).toBe(37)
+		expect(profile.levelOneCarsCompleted).toBe(9)
+		expect(profile.assistanceMode).toBe("open")
+		expect(ProfileSchema.normalize({ assistanceMode = "exploit" }).assistanceMode).toBe(
+			"private"
+		)
 	end)
 
 	it("persists placed ladder access", function()

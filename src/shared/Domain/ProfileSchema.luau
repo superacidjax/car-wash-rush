@@ -4,7 +4,9 @@ local Catalog = require(script.Parent.Parent.Catalog)
 
 local ProfileSchema = {}
 
-ProfileSchema.VERSION = 6
+ProfileSchema.VERSION = 7
+
+export type AssistanceMode = "private" | "friends" | "open"
 
 export type InventoryItem = {
 	id: string,
@@ -18,7 +20,10 @@ export type Profile = {
 	coins: number,
 	level: number,
 	experience: number,
+	eventTokens: number,
+	levelOneCarsCompleted: number,
 	ragFound: boolean,
+	assistanceMode: AssistanceMode,
 	ladderPlaced: boolean,
 	unlockedTeleports: { [string]: boolean },
 	equippedItemId: string?,
@@ -68,7 +73,10 @@ function ProfileSchema.default(): Profile
 		coins = 0,
 		level = 0,
 		experience = 0,
+		eventTokens = 0,
+		levelOneCarsCompleted = 0,
 		ragFound = false,
+		assistanceMode = "private",
 		ladderPlaced = false,
 		unlockedTeleports = { home = true },
 		equippedItemId = nil,
@@ -90,7 +98,12 @@ function ProfileSchema.normalize(raw: any, idFactory: (() -> string)?): Profile
 	profile.coins = nonNegativeInteger(raw.coins, 0)
 	profile.level = nonNegativeInteger(raw.level, 0)
 	profile.experience = nonNegativeInteger(raw.experience, 0)
+	profile.eventTokens = nonNegativeInteger(raw.eventTokens, 0)
+	profile.levelOneCarsCompleted = nonNegativeInteger(raw.levelOneCarsCompleted, 0)
 	profile.ragFound = raw.ragFound == true
+	if table.find({ "private", "friends", "open" }, raw.assistanceMode) then
+		profile.assistanceMode = raw.assistanceMode
+	end
 	profile.ladderPlaced = raw.ladderPlaced == true
 	if type(raw.unlockedTeleports) == "table" then
 		for locationId in raw.unlockedTeleports do
