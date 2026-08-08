@@ -1,0 +1,23 @@
+{
+  "name": "car-wash-rush",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "CarWashRushServer": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "CarWashRushClient": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
