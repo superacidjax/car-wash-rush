@@ -5,23 +5,14 @@ local Workspace = game:GetService("Workspace")
 local Catalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Catalog"))
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local LootRules = require(ReplicatedStorage.Shared:WaitForChild("Domain"):WaitForChild("LootRules"))
+local PlotRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("PlotRules"))
+local VehicleRules = require(ReplicatedStorage.Shared.Domain:WaitForChild("VehicleRules"))
 local PlayerData = require(script.Parent:WaitForChild("PlayerData"))
 local Remotes = require(script.Parent:WaitForChild("Remotes"))
 local SecurePrompt =
 	require(script.Parent.Parent:WaitForChild("Infrastructure"):WaitForChild("SecurePrompt"))
 
 local PrototypeGameplay = {}
-
-local ZONE_CENTERS = {
-	Vector3.new(-100, 0, -100),
-	Vector3.new(100, 0, -100),
-	Vector3.new(-100, 0, 100),
-	Vector3.new(100, 0, 100),
-	Vector3.new(-100, 0, -210),
-	Vector3.new(100, 0, -210),
-	Vector3.new(-100, 0, 210),
-	Vector3.new(100, 0, 210),
-}
 
 local SHARED_DUMP_CENTER = Vector3.new(-350, 0, 0)
 local VEHICLE_COLORS = {
@@ -481,19 +472,8 @@ for _, candidate in ipairs({
 end
 
 local function chooseWeightedCount(weights, fallback: number): number
-	local totalWeight = 0
-	for _, option in ipairs(weights) do
-		totalWeight += option.Weight
-	end
-	local roll = math.random(1, totalWeight)
-	local cumulative = 0
-	for _, option in ipairs(weights) do
-		cumulative += option.Weight
-		if roll <= cumulative then
-			return option.Count
-		end
-	end
-	return fallback
+	local selected = VehicleRules.chooseWeighted(weights, math.random())
+	return if selected then selected.Count else fallback
 end
 
 local function shuffledCandidateIndexes(candidates)
@@ -856,46 +836,44 @@ local function chooseVehicleDefinition(player: Player)
 	local schedule = vehicleSchedules[player]
 	if not schedule then
 		schedule = {
-			normalCarsUntilRv = math.random(
+			normalCarsUntilRv = VehicleRules.nextRvInterval(
 				Config.LevelOneRvIntervalMin,
-				Config.LevelOneRvIntervalMax
+				Config.LevelOneRvIntervalMax,
+				math.random()
 			),
 		}
 		vehicleSchedules[player] = schedule
 	end
 	if schedule.normalCarsUntilRv <= 0 then
-		schedule.normalCarsUntilRv =
-			math.random(Config.LevelOneRvIntervalMin, Config.LevelOneRvIntervalMax)
+		schedule.normalCarsUntilRv = VehicleRules.nextRvInterval(
+			Config.LevelOneRvIntervalMin,
+			Config.LevelOneRvIntervalMax,
+			math.random()
+		)
 		return getVehicleDefinition("rv")
 	end
 	schedule.normalCarsUntilRv -= 1
 
-	local totalWeight = 0
+	local normalEntries = {}
 	for _, definition in ipairs(Config.LevelOneVehicles) do
-		totalWeight += definition.NormalSpawnWeight or 0
-	end
-	local roll = math.random(1, totalWeight)
-	local cumulative = 0
-	for _, definition in ipairs(Config.LevelOneVehicles) do
-		cumulative += definition.NormalSpawnWeight or 0
-		if roll <= cumulative then
-			return definition
+		if definition.NormalSpawnWeight then
+			table.insert(normalEntries, {
+				Definition = definition,
+				Weight = definition.NormalSpawnWeight,
+			})
 		end
 	end
-	return Config.LevelOneVehicles[1]
+	local selected = VehicleRules.chooseWeighted(normalEntries, math.random())
+	return if selected then selected.Definition else Config.LevelOneVehicles[1]
 end
 
 local function chooseVehicleColor(player: Player): Color3
 	local previousIndex = lastVehicleColorIndexes[player]
-	local colorIndex
-	if previousIndex then
-		colorIndex = math.random(1, #VEHICLE_COLORS - 1)
-		if colorIndex >= previousIndex then
-			colorIndex += 1
-		end
-	else
-		colorIndex = math.random(1, #VEHICLE_COLORS)
-	end
+	local colorIndex = VehicleRules.nonRepeatingColorIndex(
+		#VEHICLE_COLORS,
+		previousIndex,
+		math.random()
+	) or 1
 	lastVehicleColorIndexes[player] = colorIndex
 	return VEHICLE_COLORS[colorIndex]
 end
@@ -1511,7 +1489,7 @@ local function createSharedDump()
 end
 
 local function createSafeZone(player: Player, slotIndex: number): Model
-	local center = ZONE_CENTERS[slotIndex]
+	local center = PlotRules.positionForSlot(slotIndex)
 	local zone = Instance.new("Model")
 	zone.Name = string.format("SafeZone_%d_%s", player.UserId, player.Name)
 	zone:SetAttribute("OwnerUserId", player.UserId)
@@ -1611,14 +1589,15 @@ local function createSafeZone(player: Player, slotIndex: number): Model
 end
 
 local function claimZoneSlot(player: Player): number?
-	for slotIndex = 1, #ZONE_CENTERS do
+	local slotIndex = 1
+	while true do
 		if not zoneOwners[slotIndex] then
 			zoneOwners[slotIndex] = player
 			playerZoneSlots[player] = slotIndex
 			return slotIndex
 		end
+		slotIndex += 1
 	end
-	return nil
 end
 
 local function moveCharacterToZone(player: Player, character: Model)

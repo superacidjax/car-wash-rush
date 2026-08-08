@@ -209,7 +209,7 @@ function GreyboxStarterCorner.build()
 	createPart(
 		"Ground_Base",
 		root,
-		Vector3.new(1100, 1, 700),
+		Vector3.new(2000, 1, 2200),
 		Vector3.new(0, -0.5, 0),
 		Color3.fromRGB(77, 139, 72),
 		Enum.Material.Grass

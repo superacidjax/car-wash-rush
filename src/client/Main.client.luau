@@ -6,6 +6,9 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Controllers = script.Parent:WaitForChild("Controllers")
+local HighlightController = require(Controllers:WaitForChild("HighlightController"))
+local InventoryController = require(Controllers:WaitForChild("InventoryController"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -20,6 +23,7 @@ local cleaningEnded = remote("CleaningEnded")
 local cleaningProgress = remote("CleaningProgress")
 local cleaningStarted = remote("CleaningStarted")
 local claimQualitySpongeAbility = remote("ClaimQualitySpongeAbility")
+local equipInventoryItem = remote("EquipInventoryItem")
 local inventoryUpdated = remote("InventoryUpdated")
 local notifyRemote = remote("Notify")
 local openShopDialogue = remote("OpenShopDialogue")
@@ -27,6 +31,7 @@ local purchaseTool = remote("PurchaseTool")
 local requestCleanSpot = remote("RequestCleanSpot")
 local requestInventory = remote("RequestInventory")
 local requestTeleport = remote("RequestTeleport")
+local sellInventoryItem = remote("SellInventoryItem")
 local sprintChanged = remote("SprintChanged")
 
 local COLORS = {
@@ -46,6 +51,12 @@ screenGui.IgnoreGuiInset = true
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
+
+local highlightController = HighlightController.new(player, Config.World.PrototypeCarsFolderName)
+local inventoryController = InventoryController.new(screenGui, {
+	equip = equipInventoryItem,
+	sell = sellInventoryItem,
+})
 
 local function addCorner(parent: GuiObject, radius: number?)
 	local corner = Instance.new("UICorner")
@@ -369,21 +380,44 @@ end
 
 qualityAbilityButton.MouseButton1Click:Connect(claimQualityAbility)
 
-RunService.RenderStepped:Connect(function()
+local qualityRainbowConnection: RBXScriptConnection? = nil
+local function updateQualityPosition()
 	local camera = Workspace.CurrentCamera
 	if camera and camera.ViewportSize.X < 700 then
 		qualityPanel.Position = UDim2.new(1, -12, 0.72, 0)
 	else
 		qualityPanel.Position = UDim2.new(1, -18, 0.5, 0)
 	end
-	if not qualityPanel.Visible or not qualityReady then
-		return
+end
+
+local viewportConnection: RBXScriptConnection? = nil
+local function bindViewportUpdates()
+	if viewportConnection then
+		viewportConnection:Disconnect()
 	end
-	local rainbow = Color3.fromHSV((os.clock() * 0.32) % 1, 0.85, 1)
-	qualityBarFill.BackgroundColor3 = rainbow
-	qualityStroke.Color = rainbow
-	qualityAbilityButton.BackgroundColor3 = rainbow
-end)
+	local camera = Workspace.CurrentCamera
+	if camera then
+		viewportConnection =
+			camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateQualityPosition)
+	end
+	updateQualityPosition()
+end
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bindViewportUpdates)
+bindViewportUpdates()
+
+local function setQualityRainbowEnabled(enabled: boolean)
+	if enabled and not qualityRainbowConnection then
+		qualityRainbowConnection = RunService.RenderStepped:Connect(function()
+			local rainbow = Color3.fromHSV((os.clock() * 0.32) % 1, 0.85, 1)
+			qualityBarFill.BackgroundColor3 = rainbow
+			qualityStroke.Color = rainbow
+			qualityAbilityButton.BackgroundColor3 = rainbow
+		end)
+	elseif not enabled and qualityRainbowConnection then
+		qualityRainbowConnection:Disconnect()
+		qualityRainbowConnection = nil
+	end
+end
 
 local cleaningPanel = Instance.new("Frame")
 cleaningPanel.Name = "CleaningMinigame"
@@ -459,6 +493,26 @@ local serverProgress = 0
 local requiredClicks = 1
 local decayClicksPerSecond = 0
 local lastProgressUpdate = 0
+local cleaningRenderConnection: RBXScriptConnection? = nil
+
+local function stopCleaningRender()
+	if cleaningRenderConnection then
+		cleaningRenderConnection:Disconnect()
+		cleaningRenderConnection = nil
+	end
+end
+
+local function startCleaningRender()
+	stopCleaningRender()
+	cleaningRenderConnection = RunService.RenderStepped:Connect(function()
+		displayedProgress =
+			math.max(0, serverProgress - (os.clock() - lastProgressUpdate) * decayClicksPerSecond)
+		local fraction = math.clamp(displayedProgress / requiredClicks, 0, 1)
+		progressFill.Size = UDim2.fromScale(fraction, 1)
+		progressText.Text =
+			string.format("%d / %d", math.floor(displayedProgress + 0.5), requiredClicks)
+	end)
+end
 
 cleaningStarted.OnClientEvent:Connect(function(data)
 	activeCleaning = true
@@ -472,6 +526,7 @@ cleaningStarted.OnClientEvent:Connect(function(data)
 	progressText.Text = string.format("0 / %d", requiredClicks)
 	cleaningPanel.Visible = true
 	setNavigationEnabled(false)
+	startCleaningRender()
 end)
 
 cleaningProgress.OnClientEvent:Connect(function(progress, required)
@@ -483,23 +538,12 @@ end)
 
 cleaningEnded.OnClientEvent:Connect(function(completed, message)
 	activeCleaning = false
+	stopCleaningRender()
 	cleaningPanel.Visible = false
 	setNavigationEnabled(true)
 	if not completed and message then
 		showNotification(message)
 	end
-end)
-
-RunService.RenderStepped:Connect(function()
-	if not activeCleaning then
-		return
-	end
-	displayedProgress =
-		math.max(0, serverProgress - (os.clock() - lastProgressUpdate) * decayClicksPerSecond)
-	local fraction = math.clamp(displayedProgress / requiredClicks, 0, 1)
-	progressFill.Size = UDim2.fromScale(fraction, 1)
-	progressText.Text =
-		string.format("%d / %d", math.floor(displayedProgress + 0.5), requiredClicks)
 end)
 
 local dialogue = Instance.new("Frame")
@@ -630,12 +674,38 @@ shopList.Parent = shopItems
 local latestShopTools = {}
 local activeShopClerk: BasePart? = nil
 local shopSessionOpen = false
+local shopSessionToken = 0
 
 local function closeShopSession()
 	shopSessionOpen = false
+	shopSessionToken += 1
 	activeShopClerk = nil
 	dialogue.Visible = false
 	shop.Visible = false
+end
+
+local function monitorShopDistance()
+	shopSessionToken += 1
+	local token = shopSessionToken
+	task.spawn(function()
+		while shopSessionOpen and token == shopSessionToken do
+			task.wait(0.2)
+			if not activeShopClerk or not activeShopClerk.Parent then
+				closeShopSession()
+				return
+			end
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if
+				not root
+				or not root:IsA("BasePart")
+				or (root.Position - activeShopClerk.Position).Magnitude > 22
+			then
+				closeShopSession()
+				return
+			end
+		end
+	end)
 end
 
 local function renderShop(toolDefinitions)
@@ -714,6 +784,7 @@ openShopDialogue.OnClientEvent:Connect(function(shopTools, clerk)
 	shopSessionOpen = true
 	shop.Visible = false
 	dialogue.Visible = true
+	monitorShopDistance()
 end)
 
 buyChoice.MouseButton1Click:Connect(function()
@@ -729,21 +800,6 @@ end)
 
 closeShop.MouseButton1Click:Connect(function()
 	closeShopSession()
-end)
-
-RunService.RenderStepped:Connect(function()
-	if not shopSessionOpen or not activeShopClerk or not activeShopClerk.Parent then
-		return
-	end
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if
-		not root
-		or not root:IsA("BasePart")
-		or (root.Position - activeShopClerk.Position).Magnitude > 22
-	then
-		closeShopSession()
-	end
 end)
 
 local lastDirtRequestAt = 0
@@ -780,7 +836,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	local isPointerClick = input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch
 	if activeCleaning and isPointerClick then
-		if dialogue.Visible or shop.Visible then
+		if dialogue.Visible or shop.Visible or inventoryController:isVisible() then
 			return
 		end
 		if qualityAbilityButton.Visible and pointIsInside(qualityAbilityButton, input.Position) then
@@ -790,17 +846,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if sprintButton and pointIsInside(sprintButton, input.Position) then
 			return
 		end
-		local camera = Workspace.CurrentCamera
-		if camera then
-			local y = input.Position.Y
-			if y > 112 and y < camera.ViewportSize.Y - 90 then
-				cleaningClick:FireServer()
-			end
-		end
+		cleaningClick:FireServer()
 		return
 	end
 
-	if gameProcessed or dialogue.Visible or shop.Visible then
+	if gameProcessed or dialogue.Visible or shop.Visible or inventoryController:isVisible() then
 		return
 	end
 	if not isPointerClick then
@@ -845,6 +895,7 @@ local function updateQualitySpongeStatus()
 	if not latestInventory then
 		qualityPanel.Visible = false
 		qualityReady = false
+		setQualityRainbowEnabled(false)
 		return
 	end
 	local equippedToolId = nil
@@ -860,12 +911,14 @@ local function updateQualitySpongeStatus()
 		qualityPanel.Visible = false
 		qualityAbilityButton.Visible = false
 		qualityReady = false
+		setQualityRainbowEnabled(false)
 		return
 	end
 
 	local required = Config.Cleaning.QualitySpongeChargeRequired
 	local charge = math.clamp(latestInventory.qualitySpongeCharge or 0, 0, required)
 	qualityReady = charge >= required
+	setQualityRainbowEnabled(qualityReady)
 	qualityPanel.Visible = true
 	qualityChargeText.Text = string.format("%d/%d", charge, required)
 	qualityBarFill.Size = UDim2.fromScale(charge / required, 1)
@@ -921,29 +974,12 @@ local function isCleaningToolHeld(): boolean
 end
 
 local function updateDirtHighlights()
-	local carsFolder = Workspace:FindFirstChild(Config.World.PrototypeCarsFolderName)
-	if not carsFolder then
-		return
-	end
-	local enabled = isCleaningToolHeld()
-	for _, descendant in ipairs(carsFolder:GetDescendants()) do
-		if descendant:IsA("Highlight") and descendant.Name == "DirtHighlight" then
-			local dirt = descendant.Parent
-			descendant.Enabled = enabled
-				and dirt ~= nil
-				and dirt:GetAttribute("OwnerUserId") == player.UserId
-		end
-	end
+	highlightController:setHeld(isCleaningToolHeld())
 end
-
-Workspace.DescendantAdded:Connect(function(descendant)
-	if descendant:IsA("Highlight") and descendant.Name == "DirtHighlight" then
-		task.defer(updateDirtHighlights)
-	end
-end)
 
 inventoryUpdated.OnClientEvent:Connect(function(snapshot)
 	latestInventory = snapshot
+	inventoryController:setSnapshot(snapshot)
 	updateMoneyStatus()
 	updateExperienceStatus()
 	updateQualitySpongeStatus()

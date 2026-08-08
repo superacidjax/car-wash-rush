@@ -2,6 +2,13 @@
   "name": "car-wash-rush",
   "tree": {
     "$className": "DataModel",
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": true,
+        "StreamingMinRadius": 128,
+        "StreamingTargetRadius": 512
+      }
+    },
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"
